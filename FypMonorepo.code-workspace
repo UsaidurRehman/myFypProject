@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "ReactNative",
+      "path": "."
+    },
+    {
+      "name": "AspNetApi",
+      "path": "../../Fyp_Backend/Fyp_Backend"
+    }
+  ],
+  "settings": {}
+}
