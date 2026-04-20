@@ -115,14 +115,17 @@ const JobConfirmationScreen = ({ navigation }) => {
     const renderJobCard = (item) => {
         // Styling logic based on job type
         const isRejected = item.type === 'rejected';
-        const borderColor = isRejected ? '#FF5252' : '#4CAF50';
-        const statusBg = isRejected ? '#FFCDD2' : '#C8E6C9';
-        const statusTextColor = isRejected ? '#D32F2F' : '#388E3C';
+        const isTerminated = item.type === 'terminated';
+        const isNegative = isRejected || isTerminated;
+
+        const borderColor = isNegative ? '#FF5252' : '#4CAF50';
+        const statusBg = isNegative ? '#FFCDD2' : '#C8E6C9';
+        const statusTextColor = isNegative ? '#D32F2F' : '#388E3C';
 
         return (
             <View key={item.id} style={[styles.card, { borderColor: borderColor }]}>
-                <Text style={[styles.offerHeader, { color: isRejected ? '#FF5252' : '#4CAF50' }]}>
-                    {isRejected ? 'Job Rejected!' : 'Job Offered!'}
+                <Text style={[styles.offerHeader, { color: borderColor }]}>
+                    {isTerminated ? 'Contract Terminated!' : (isRejected ? 'Job Rejected!' : 'Job Offered!')}
                 </Text>
 
                 <View style={styles.clientRow}>
@@ -168,9 +171,12 @@ const JobConfirmationScreen = ({ navigation }) => {
                         </>
                     )}
 
-                    {item.type === 'rejected' && (
-                        <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteJob(item.id)}>
-                            <Text style={styles.btnTextGrey}>Delete</Text>
+                    {(item.type === 'rejected' || item.type === 'terminated') && (
+                        <TouchableOpacity 
+                            style={[styles.deleteBtn, isTerminated && { backgroundColor: '#FF5252' }]} 
+                            onPress={() => handleDeleteJob(item.id)}
+                        >
+                            <Text style={[styles.btnTextGrey, isTerminated && { color: '#FFF' }]}>Delete</Text>
                         </TouchableOpacity>
                     )}
 

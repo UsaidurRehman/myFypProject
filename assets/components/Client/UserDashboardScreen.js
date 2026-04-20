@@ -97,43 +97,68 @@ const UserDashboard = ({ navigation }) => {
   };
 
   const renderWorkerCard = ({ item }) => (
-    <View style={[styles.workerCard, item.type === 'alert' && styles.alertBorder]}>
-      {item.type === 'alert' && (
+    <TouchableOpacity 
+      style={[styles.workerCard, (item.type === 'alert' || item.status === 'Resigned') && styles.alertBorder]}
+      onPress={() => navigation.navigate('WorkerDetailScreen', { workerId: item.id })}
+      activeOpacity={0.7}
+    >
+      {(item.type === 'alert' || item.status === 'Resigned') && (
         <View style={styles.alertBadge}>
           <Text style={styles.alertText}>Resignation Alert</Text>
         </View>
       )}
 
       <View style={styles.cardHeader}>
-        <Image
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }} // Placeholder for Worker Pic
-          style={styles.workerImage}
-        />
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ 
+              uri: item.picture && item.picture.startsWith('/')
+                ? `${SERVER_BASE}${item.picture}`
+                : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+            }}
+            style={styles.workerImage}
+          />
+          <View style={styles.workerBadgeOverlay}>
+            <Icon name="account" size={12} color="#FFF" />
+          </View>
+        </View>
+
         <View style={styles.workerInfo}>
-          <View style={styles.nameRoleRow}>
-            <Text style={styles.workerName}>{item.name}</Text>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>{item.role}</Text>
-            </View>
+          <Text style={styles.workerName}>{item.name}</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText}>{item.role}</Text>
           </View>
           <View style={styles.locationRow}>
             <Icon name="map-marker" size={16} color="#E91E63" />
             <Text style={styles.locationText}>{item.location}</Text>
           </View>
+          <View style={styles.dateRow}>
+            <Icon name="calendar-clock" size={14} color="#888" />
+            <Text style={styles.dateText}>Joined on {item.date}</Text>
+          </View>
         </View>
       </View>
 
       <View style={styles.actionRow}>
-        <View style={[styles.statusBadge, styles[`status_${item.type}`]]}>
-          <Text style={[styles.statusText, styles[`text_${item.type}`]]}>{item.status}</Text>
-        </View>
-        <TouchableOpacity style={[styles.mainBtn, item.type === 'active' || item.type === 'alert' ? styles.blueBtn : styles.redBtn]}>
-          <Text style={styles.mainBtnText}>
-            {item.type === 'active' || item.type === 'alert' ? 'Terminate' : 'Delete'}
+        <View style={[styles.statusBadge, styles[`status_${(item.type || 'active')}`]]}>
+          <Text style={[styles.statusText, styles[`text_${(item.type || 'active')}`]]}>
+            {item.status || 'On Work'}
           </Text>
-        </TouchableOpacity>
+        </View>
+
+        {(item.type === 'active' || item.type === 'alert') && (
+          <TouchableOpacity 
+            style={[styles.mainBtn, styles.blueBtn]}
+            onPress={() => navigation.navigate('TerminateContractScreen', { 
+              workerId: item.id, 
+              interviewId: item.interviewId 
+            })}
+          >
+            <Text style={styles.mainBtnText}>Terminate</Text>
+          </TouchableOpacity>
+        )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderHeader = () => (
@@ -178,11 +203,16 @@ const UserDashboard = ({ navigation }) => {
       {/* Grid Menu */}
       <View style={styles.menuGrid}>
         <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('FindServiceScreen')}>
-          <Text style={styles.menuBtnText}>Find Services</Text>
+          <Text style={styles.menuBtnText}>Services</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('ActiveRequestScreen')} style={styles.menuBtn}><Text style={styles.menuBtnText}>Interview Requests</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('WorkerDecisionScreen')} style={styles.menuBtn}><Text style={styles.menuBtnText}>Job Requests</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.menuBtn}><Text style={styles.menuBtnText}>Resignations</Text></TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.menuBtn} 
+          onPress={() => navigation.navigate('ResignationsScreen')}
+        >
+          <Text style={styles.menuBtnText}>Resignations</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Status Counters */}
@@ -190,17 +220,17 @@ const UserDashboard = ({ navigation }) => {
       <View style={styles.statusRow}>
         <View style={styles.counterBox}>
           <Icon name="account-group-outline" size={24} color="#333" />
-          <Text style={styles.counterLabel}>Hired Workers</Text>
+          <Text style={styles.counterLabel}>Workers</Text>
           <Text style={styles.counterNum}>{hiredCount}</Text>
         </View>
         <View style={styles.counterBox}>
           <Icon name="account-clock-outline" size={24} color="#333" />
-          <Text style={styles.counterLabel}>Interview Pending</Text>
+          <Text style={styles.counterLabel}>interview pending</Text>
           <Text style={styles.counterNum}>{pendingInterviewsCount}</Text>
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>My Hired Workforce</Text>
+      <Text style={styles.sectionTitle}>Current Worker</Text>
     </View>
   );
 
@@ -215,7 +245,7 @@ const UserDashboard = ({ navigation }) => {
         <FlatList
           data={workers}
           renderItem={renderWorkerCard}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item.interviewId || item.id}
           ListHeaderComponent={renderHeader}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -231,60 +261,182 @@ const styles = StyleSheet.create({
   listContent: { padding: 20 },
 
   // Header Styles
-  profileSection: { marginTop: 30, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  greetingText: { fontSize: 14, color: '#666' },
-  userName: { fontSize: 22, fontWeight: 'bold', color: '#000' },
-  headerButtons: { flexDirection: 'row', marginTop: 10 },
-  smallBlueBtn: { backgroundColor: '#1E64D3', paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20, marginRight: 10 },
-  smallBtnText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
-  profilePic: { width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: '#EEE' },
+  profileSection: { 
+    marginTop: 20, 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    marginBottom: 20 
+  },
+  greetingText: { fontSize: 13, color: '#666', fontWeight: '500' },
+  userName: { fontSize: 24, fontWeight: 'bold', color: '#000', marginTop: 2 },
+  headerButtons: { flexDirection: 'row', marginTop: 15 },
+  smallBlueBtn: { 
+    backgroundColor: '#1E64D3', 
+    paddingHorizontal: 16, 
+    paddingVertical: 8, 
+    borderRadius: 20, 
+    marginRight: 10,
+    elevation: 3,
+    shadowColor: '#1E64D3',
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 }
+  },
+  smallBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  profilePic: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: '#FFF', elevation: 5 },
 
-  addressCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 15, elevation: 4, marginBottom: 20, borderWidth: 1, borderColor: '#EEE' },
-  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  infoText: { marginLeft: 10, color: '#333', fontSize: 14 },
+  addressCard: { 
+    backgroundColor: '#FFF', 
+    borderRadius: 25, 
+    padding: 18, 
+    elevation: 4, 
+    marginBottom: 25, 
+    borderWidth: 1, 
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 }
+  },
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  infoText: { marginLeft: 15, color: '#333', fontSize: 14, fontWeight: '500' },
 
-  menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  menuBtn: { backgroundColor: '#1E64D3', width: '48%', height: 45, borderRadius: 25, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  menuBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
+  menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
+  menuBtn: { 
+    backgroundColor: '#1E64D3', 
+    width: '48%', 
+    height: 48, 
+    borderRadius: 25, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 15,
+    elevation: 4,
+    shadowColor: '#1E64D3',
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 3 }
+  },
+  menuBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
 
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginVertical: 15 },
-  statusRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  counterBox: { backgroundColor: '#FFF', width: '48%', padding: 15, borderRadius: 20, flexDirection: 'row', alignItems: 'center', elevation: 3, borderWidth: 1, borderColor: '#EEE' },
-  counterLabel: { flex: 1, marginLeft: 10, fontSize: 12, color: '#333' },
-  counterNum: { fontWeight: 'bold', fontSize: 16 },
+  sectionTitle: { fontSize: 22, fontWeight: 'bold', marginVertical: 18, color: '#000' },
+  statusRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  counterBox: { 
+    backgroundColor: '#FFF', 
+    width: '48%', 
+    padding: 18, 
+    borderRadius: 25, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    elevation: 4, 
+    borderWidth: 1, 
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 }
+  },
+  counterLabel: { flex: 1, marginLeft: 12, fontSize: 13, color: '#444', fontWeight: 'bold' },
+  counterNum: { fontWeight: 'bold', fontSize: 18, color: '#000' },
 
   // Worker Card Styles
-  workerCard: { backgroundColor: '#FFF', borderRadius: 25, padding: 15, marginBottom: 15, elevation: 4, borderWidth: 1, borderColor: '#EEE', position: 'relative' },
-  alertBorder: { borderColor: '#FFEB3B', borderWidth: 2 },
-  alertBadge: { position: 'absolute', top: 0, right: 20, backgroundColor: '#FFEB3B', paddingHorizontal: 10, paddingVertical: 2, borderBottomLeftRadius: 10, borderBottomRightRadius: 10 },
-  alertText: { fontSize: 10, fontWeight: 'bold', color: '#FF0000' },
-  cardHeader: { flexDirection: 'row' },
-  workerImage: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F0F0F0' },
-  workerInfo: { marginLeft: 15, flex: 1 },
+  workerCard: { 
+    backgroundColor: '#FFF', 
+    borderRadius: 30, 
+    padding: 18, 
+    marginBottom: 20, 
+    elevation: 5, 
+    borderWidth: 1, 
+    borderColor: '#F0F0F0', 
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 }
+  },
+  alertBorder: { borderColor: '#FFD600', borderWidth: 2.5 },
+  alertBadge: { 
+    position: 'absolute', 
+    top: -1, 
+    right: 30, 
+    backgroundColor: '#FFF9C4', 
+    paddingHorizontal: 12, 
+    paddingVertical: 5, 
+    borderBottomLeftRadius: 15, 
+    borderBottomRightRadius: 15,
+    borderWidth: 1,
+    borderColor: '#FBC02D',
+    borderTopWidth: 0,
+    zIndex: 10
+  },
+  alertText: { fontSize: 11, fontWeight: 'bold', color: '#F57F17', letterSpacing: 0.5 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center' },
+  imageContainer: { position: 'relative' },
+  workerImage: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#F8F8F8', borderWidth: 1, borderColor: '#EEE' },
+  workerBadgeOverlay: { 
+    position: 'absolute', 
+    bottom: 0, 
+    right: 0, 
+    backgroundColor: '#333', 
+    width: 20, 
+    height: 20, 
+    borderRadius: 10, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFF'
+  },
+  workerInfo: { marginLeft: 18, flex: 1 },
   nameRoleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  workerName: { fontSize: 16, fontWeight: 'bold' },
-  roleBadge: { borderWidth: 1, borderColor: '#1E64D3', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  roleText: { fontSize: 10, color: '#1E64D3' },
-  locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
-  locationText: { fontSize: 12, color: '#666', marginLeft: 5 },
+  workerName: { fontSize: 18, fontWeight: 'bold', color: '#000' },
+  roleBadge: { 
+    borderWidth: 1, 
+    borderColor: '#1E64D3', 
+    borderRadius: 12, 
+    paddingHorizontal: 10, 
+    paddingVertical: 3,
+    backgroundColor: '#F0F7FF'
+  },
+  roleText: { fontSize: 10, color: '#1E64D3', fontWeight: '800' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  locationText: { fontSize: 13, color: '#777', marginLeft: 6, fontWeight: '500' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  dateText: { fontSize: 12, color: '#888', marginLeft: 6 },
 
-  actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15 },
-  statusBadge: { paddingHorizontal: 20, paddingVertical: 6, borderRadius: 15, borderWidth: 1 },
-  status_active: { borderColor: '#1E64D3', backgroundColor: '#FFF' },
-  status_resigned: { borderColor: '#CCC', backgroundColor: '#F9F9F9' },
-  status_terminated: { borderColor: '#FFEB3B', backgroundColor: '#FFF' },
-  status_alert: { borderColor: '#1E64D3', backgroundColor: '#FFF' },
+  actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 },
+  statusBadge: { 
+    paddingHorizontal: 18, 
+    paddingVertical: 6, 
+    borderRadius: 12, 
+    borderWidth: 1.5,
+    minWidth: 90,
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA'
+  },
+  status_active: { borderColor: '#1E64D3', backgroundColor: '#E8F0FE' },
+  status_resigned: { borderColor: '#FFB300', backgroundColor: '#FFF9C4' },
+  status_terminated: { borderColor: '#E53935', backgroundColor: '#FFEBEE' },
+  status_alert: { borderColor: '#1E64D3', backgroundColor: '#E8F0FE' },
 
   statusText: { fontSize: 12, fontWeight: 'bold' },
-  text_active: { color: '#1E64D3' },
-  text_resigned: { color: '#666' },
-  text_terminated: { color: '#999' },
-  text_alert: { color: '#1E64D3' },
+  text_active: { color: '#0056B3' },
+  text_resigned: { color: '#F57F17' },
+  text_terminated: { color: '#D32F2F' },
+  text_alert: { color: '#0056B3' },
 
-  mainBtn: { paddingHorizontal: 25, paddingVertical: 8, borderRadius: 12 },
+  mainBtn: { 
+    paddingHorizontal: 30, 
+    paddingVertical: 10, 
+    borderRadius: 15,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 }
+  },
   blueBtn: { backgroundColor: '#1E64D3' },
-  redBtn: { backgroundColor: '#FF0000' },
-  mainBtnText: { color: '#FFF', fontWeight: 'bold' },
+  redBtn: { backgroundColor: '#FF1744' },
+  mainBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
 });
 
 export default UserDashboard;

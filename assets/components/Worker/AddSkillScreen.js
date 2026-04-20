@@ -175,8 +175,8 @@ const AddSkillsScreen = ({ navigation, route }) => {
   const [secondary, setSecondary] = useState(null);
   const [experienceList, setExperienceList] = useState([]);
 
-  const categoryMap = { 'Cleaning': 3, 'Cooking': 1, 'Driving': 2 };
-  const reverseCategoryMap = { 3: 'Cleaning', 1: 'Cooking', 2: 'Driving' };
+  const categoryMap = { 'Cleaning': 2, 'Cooking': 1, 'Driving': 3 };
+  const reverseCategoryMap = { 2: 'Cleaning', 1: 'Cooking', 3: 'Driving' };
 
   useEffect(() => {
     if (route.params?.existingExperiences && experienceList.length === 0) {

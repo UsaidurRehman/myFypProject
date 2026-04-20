@@ -127,7 +127,10 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         <Text style={styles.sectionTitle}>Employment Actions</Text>
                     </View>
                     <Text style={styles.actionSubtext}>Manage your job status and termination requests</Text>
-                    <TouchableOpacity style={styles.terminateBtn}>
+                    <TouchableOpacity
+                        style={styles.terminateBtn}
+                        onPress={() => navigation.navigate('LeaveJobScreen')}
+                    >
                         <Icon name="close-circle-outline" size={24} color="#FF4D4D" />
                         <Text style={styles.terminateText}>Resign from Job</Text>
                     </TouchableOpacity>
@@ -165,8 +168,13 @@ const WorkerDashboardScreen = ({ navigation }) => {
                     onPress={() => navigation.navigate('JobConfirmationScreen')}
                 />
 
-                <TouchableOpacity style={styles.checkStatusBtn}>
-                    <Text style={styles.btnTextWhite}>Check Resignation Status</Text>
+                <TouchableOpacity 
+                    style={styles.checkStatusBtn}
+                    onPress={() => navigation.navigate('WorkerTerminationScreen')}
+                >
+                    <Text style={styles.btnTextWhite}>
+                        Check Termination Status {worker.terminationCount > 0 ? `(${worker.terminationCount})` : ''}
+                    </Text>
                 </TouchableOpacity>
 
                 {/* Profile Details */}
@@ -215,7 +223,14 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         <Icon name="star" size={24} color="#FFD700" />
                         <Text style={styles.ratingText}>{worker.rating || "0.0"}</Text>
                     </View>
-                    <TouchableOpacity style={styles.viewReviewsBtn}>
+                    <TouchableOpacity
+                        style={styles.viewReviewsBtn}
+                        onPress={() => navigation.navigate('WorkerRatingAndReviewsScreen', {
+                            workerId: worker.id || worker.workerId, // Handling both naming conventions
+                            initialRating: worker.rating,
+                            initialReviewCount: worker.reviewCount
+                        })}
+                    >
                         <Text style={styles.btnTextWhite}>View {worker.reviewCount || 0} Reviews</Text>
                     </TouchableOpacity>
                 </View>

@@ -169,7 +169,15 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                     {/* Reviews Section */}
                     <View style={styles.reviewHeader}>
                         <Text style={styles.sectionTitle}>Recent Reviews</Text>
-                        <TouchableOpacity><Text style={styles.viewAllText}>View all</Text></TouchableOpacity>
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate('RatingAndReviewsScreen', { 
+                                workerId: worker.id,
+                                initialRating: worker.rating,
+                                initialReviewCount: worker.reviewCount
+                            })}
+                        >
+                            <Text style={styles.viewAllText}>View all</Text>
+                        </TouchableOpacity>
                     </View>
 
                     {worker.reviews && worker.reviews.length > 0 ? (

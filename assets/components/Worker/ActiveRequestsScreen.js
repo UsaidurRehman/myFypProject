@@ -48,7 +48,7 @@ const ActiveRequestsScreen = ({ navigation }) => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ decision })
+                body: JSON.stringify({ workerDecision: decision })
             });
 
             if (response.ok) {

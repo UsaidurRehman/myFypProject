@@ -16,6 +16,13 @@ import ActiveRequestScreen from './assets/components/Client/ActiveRequestScreen.
 import AcceptedRequestScreen from './assets/components/Worker/AcceptedRequestScreen.js';
 import JobConfirmationScreen from './assets/components/Worker/JobConfirmationScreen.js';
 import WorkerDecisionScreen from './assets/components/Client/WorkerDecisionScreen.js';
+import RatingAndReviewsScreen from './assets/components/Client/RatingAndReviewsScreen.js';
+import ResignationsScreen from './assets/components/Client/ResignationsScreen.js';
+import ResignationScreen from './assets/components/Client/ResignationScreen.js';
+import WorkerRatingAndReviewsScreen from './assets/components/Worker/RatingAndReviewsScreen.js';
+import LeaveJobScreen from './assets/components/Worker/LeaveJobScreen.js';
+import TerminateContractScreen from './assets/components/Client/TerminateContractScreen.js';
+import WorkerTerminationScreen from './assets/components/Worker/WorkerTerminationScreen.js';
 import Toast from 'react-native-toast-message';
 
 const Stack = createStackNavigator();
@@ -41,6 +48,13 @@ export default function App() {
           <Stack.Screen name="AcceptedRequestScreen" component={AcceptedRequestScreen} />
           <Stack.Screen name="JobConfirmationScreen" component={JobConfirmationScreen} />
           <Stack.Screen name="WorkerDecisionScreen" component={WorkerDecisionScreen} />
+          <Stack.Screen name="RatingAndReviewsScreen" component={RatingAndReviewsScreen} />
+          <Stack.Screen name="ResignationsScreen" component={ResignationsScreen} />
+          <Stack.Screen name="ResignationScreen" component={ResignationScreen} />
+          <Stack.Screen name="WorkerRatingAndReviewsScreen" component={WorkerRatingAndReviewsScreen} />
+          <Stack.Screen name="LeaveJobScreen" component={LeaveJobScreen} />
+          <Stack.Screen name="TerminateContractScreen" component={TerminateContractScreen} />
+          <Stack.Screen name="WorkerTerminationScreen" component={WorkerTerminationScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />

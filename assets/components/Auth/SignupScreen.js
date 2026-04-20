@@ -296,27 +296,12 @@ const SignupScreen = ({ navigation, route }) => {
                 <FormInput icon="card-bulleted-outline" placeholder="Age" value={age} onChangeText={setAge} keyboardType="numeric" />
                 <FormInput icon="card-account-details-outline" placeholder="CNIC" value={cnic} onChangeText={setCnic} keyboardType="numeric" />
                 <FormInput icon="currency-usd" placeholder="Salary" value={salary} onChangeText={setSalary} keyboardType="numeric" />
-
-                <Text style={[styles.sectionLabel, { marginTop: 10 }]}>SELECT GENDER</Text>
-                <View style={styles.genderContainer}>
-                  <TouchableOpacity
-                    style={[styles.genderChip, gender === 'Male' && styles.activeGenderChip]}
-                    onPress={() => setGender('Male')}
-                  >
-                    <Icon name="gender-male" size={20} color={gender === 'Male' ? "#FFF" : "#333"} />
-                    <Text style={[styles.genderText, gender === 'Male' && styles.activeGenderText]}>Male</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.genderChip, gender === 'Female' && styles.activeGenderChip]}
-                    onPress={() => setGender('Female')}
-                  >
-                    <Icon name="gender-female" size={20} color={gender === 'Female' ? "#FFF" : "#333"} />
-                    <Text style={[styles.genderText, gender === 'Female' && styles.activeGenderText]}>Female</Text>
-                  </TouchableOpacity>
-                </View>
               </>
             )}
             <FormInput icon="phone-outline" placeholder="Phone no" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+            {role === 'Worker' && (
+              <FormInput icon="map-marker-outline" placeholder="Address" value={address} onChangeText={setAddress} />
+            )}
             {role === 'Client' && (
               <>
                 <FormInput icon="email-outline" placeholder="Email" value={email} onChangeText={setEmail} />
@@ -341,24 +326,43 @@ const SignupScreen = ({ navigation, route }) => {
         {role === 'Worker' && step === 2 && (
           <>
             <Text style={styles.sectionLabel}>PROFESSIONAL DESCRIPTION</Text>
-            <View style={[styles.inputWrapper, { height: 100, alignItems: 'flex-start', paddingTop: 10 }]}>
+            <View style={[styles.inputWrapper, { height: 75, alignItems: 'flex-start', paddingTop: 10 }]}>
               <View style={styles.iconCircle}>
                 <Icon name="text-account" size={20} color="#333" />
               </View>
               <TextInput
-                style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                style={[styles.input, { height: 55, textAlignVertical: 'top' }]}
                 placeholder="Briefly describe your work experience and skills..."
                 placeholderTextColor="#999"
                 multiline={true}
-                numberOfLines={4}
+                numberOfLines={2}
                 value={bio}
                 onChangeText={setBio}
               />
             </View>
 
             <FormInput icon="email-outline" placeholder="Email" value={email} onChangeText={setEmail} />
-            <FormInput icon="map-marker-outline" placeholder="Address" value={address} onChangeText={setAddress} />
+            
             <FormInput icon={hasAddedSkills ? "check-circle" : "plus-circle-outline"} leftIconColor={hasAddedSkills ? "#008000" : "#1E64D3"} placeholder="Add Skills" isButton={true} value={hasAddedSkills ? "Skills Added" : ""} onPress={goToSkills} />
+
+            <Text style={styles.sectionLabel}>SELECT GENDER</Text>
+            <View style={styles.genderContainer}>
+              <TouchableOpacity
+                style={[styles.genderChip, gender === 'Male' && styles.activeGenderChip]}
+                onPress={() => setGender('Male')}
+              >
+                <Icon name="gender-male" size={20} color={gender === 'Male' ? "#FFF" : "#333"} />
+                <Text style={[styles.genderText, gender === 'Male' && styles.activeGenderText]}>Male</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.genderChip, gender === 'Female' && styles.activeGenderChip]}
+                onPress={() => setGender('Female')}
+              >
+                <Icon name="gender-female" size={20} color={gender === 'Female' ? "#FFF" : "#333"} />
+                <Text style={[styles.genderText, gender === 'Female' && styles.activeGenderText]}>Female</Text>
+              </TouchableOpacity>
+            </View>
+
             <FormInput icon="lock-outline" placeholder="Password" isPassword secure={!showPassword} toggleSecure={() => setShowPassword(!showPassword)} value={password} onChangeText={setPassword} />
             <FormInput icon="lock-outline" placeholder="Confirm Password" isPassword secure={!showConfirmPassword} toggleSecure={() => setShowConfirmPassword(!showConfirmPassword)} value={confirmPassword} onChangeText={setConfirmPassword} />
             <View style={styles.buttonRow}>

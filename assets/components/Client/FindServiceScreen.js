@@ -122,75 +122,74 @@ const FindServiceScreen = ({ navigation, route }) => {
         fetchWorkers(selectedCategory, search, allFilters);
     }, [selectedCategory, allFilters]);
 
-    // Search on text change with a small delay
+    // Search on text change with optimized delay for better responsiveness
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchWorkers(selectedCategory, search, allFilters);
-        }, 500);
+        }, 300); // Reduced delay for more responsive feel
         return () => clearTimeout(timer);
     }, [search]);
 
-    const renderWorkerCard = ({ item }) => (
-        <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <View style={styles.imageContainer}>
-                    <Image
-                        source={{
-                            uri: item.picture && item.picture.startsWith('/')
-                                ? `${SERVER_BASE}${item.picture}`
-                                : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
-                        }}
-                        style={styles.workerImage}
-                        onError={() => console.log('Worker image failed:', `${SERVER_BASE}${item.picture}`)}
-                    />
-                </View>
+    const extractCity = (address) => {
+        if (!address || address === 'N/A') return 'N/A';
+        const parts = address.split(',');
+        return parts.length > 1 ? parts[parts.length - 1].trim() : address.trim();
+    };
 
-                <View style={styles.infoContainer}>
-                    <View style={styles.nameRow}>
-                        <Text style={styles.workerName}>{item.name}</Text>
+    const renderWorkerCard = ({ item }) => {
+        const city = extractCity(item.city);
+        
+        return (
+            <View style={styles.card}>
+                <View style={styles.cardContent}>
+                    <View style={styles.imageWrapper}>
+                        <Image
+                            source={{
+                                uri: item.picture && item.picture.startsWith('/')
+                                    ? `${SERVER_BASE}${item.picture}`
+                                    : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+                            }}
+                            style={styles.workerImage}
+                        />
                         <View style={styles.ratingBadge}>
-                            <Icon name="star" size={14} color="#FFD700" />
+                            <Icon name="star" size={12} color="#FFD700" />
                             <Text style={styles.ratingText}>{item.rating || "0.0"}</Text>
                         </View>
                     </View>
 
-                    <Text style={styles.roleText}>{item.role}</Text>
-
-                    <View style={styles.chipRow}>
-                        {item.categories && item.categories.length > 0 ? (
-                            item.categories.map((cat, index) => (
-                                <View key={index} style={styles.categoryChip}>
-                                    <Text style={styles.categoryText}>{cat}</Text>
-                                </View>
-                            ))
-                        ) : (
-                            <View style={styles.categoryChip}>
-                                <Text style={styles.categoryText}>{item.role}</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={styles.locationSalaryRow}>
-                        <View>
-                            <Text style={styles.label}>City</Text>
-                            <Text style={styles.valueText}>{item.city || 'N/A'}</Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={styles.label}>Salary</Text>
+                    <View style={styles.mainInfo}>
+                        <View style={styles.headerRow}>
+                            <Text style={styles.workerName} numberOfLines={1}>{item.name}</Text>
                             <Text style={styles.salaryText}>{item.salary || 'N/A'}</Text>
+                        </View>
+
+                        <Text style={styles.roleLabel}>{item.role}</Text>
+
+                        <View style={styles.locationContainer}>
+                            <Icon name="map-marker-outline" size={14} color="#666" />
+                            <Text style={styles.locationText} numberOfLines={1}>{city}</Text>
+                        </View>
+
+                        <View style={styles.badgeRow}>
+                            {item.categories && item.categories.slice(0, 2).map((cat, index) => (
+                                <View key={index} style={[styles.skillBadge, { backgroundColor: index === 0 ? '#E8F0FE' : '#F1F3F4' }]}>
+                                    <Text style={[styles.skillBadgeText, { color: index === 0 ? '#1E64D3' : '#5F6368' }]}>{cat}</Text>
+                                </View>
+                            ))}
                         </View>
                     </View>
                 </View>
-            </View>
 
-            <TouchableOpacity
-                style={styles.callButton}
-                onPress={() => navigation.navigate('WorkerDetailScreen', { workerId: item.id })}
-            >
-                <Text style={styles.callButtonText}>Call For Interview</Text>
-            </TouchableOpacity>
-        </View>
-    );
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => navigation.navigate('WorkerDetailScreen', { workerId: item.id })}
+                >
+                    <Text style={styles.actionButtonText}>View Profile & Interview</Text>
+                    <Icon name="chevron-right" size={20} color="#FFF" />
+                </TouchableOpacity>
+            </View>
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -319,29 +318,29 @@ const styles = StyleSheet.create({
     resultsCount: { alignSelf: 'flex-end', marginRight: 20, fontSize: 12, color: '#999', marginVertical: 8 },
 
     listContent: { paddingHorizontal: 20, paddingBottom: 30 },
-    card: { backgroundColor: '#FFF', borderRadius: 20, padding: 15, marginBottom: 15, elevation: 4, borderWidth: 1, borderColor: '#EEE' },
-    cardHeader: { flexDirection: 'row' },
-    imageContainer: { marginRight: 15 },
-    workerImage: { width: 75, height: 75, borderRadius: 38, backgroundColor: '#F0F0F0' },
+    card: { backgroundColor: '#FFF', borderRadius: 24, padding: 16, marginBottom: 20, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, borderWidth: 1, borderColor: '#F0F0F0' },
+    cardContent: { flexDirection: 'row' },
+    imageWrapper: { position: 'relative' },
+    workerImage: { width: 85, height: 85, borderRadius: 20, backgroundColor: '#F8F9FA' },
+    ratingBadge: { position: 'absolute', bottom: -5, right: -5, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+    ratingText: { fontSize: 10, fontWeight: 'bold', marginLeft: 2, color: '#333' },
 
-    infoContainer: { flex: 1 },
-    nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    workerName: { fontSize: 16, fontWeight: 'bold', color: '#000', flex: 1 },
-    ratingBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFEE0', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: '#FFD700' },
-    ratingText: { fontSize: 11, fontWeight: 'bold', marginLeft: 3 },
-    roleText: { color: '#1E64D3', fontSize: 13, marginVertical: 3 },
+    mainInfo: { flex: 1, marginLeft: 16, justifyContent: 'center' },
+    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    workerName: { fontSize: 18, fontWeight: 'bold', color: '#1A1C1E', flex: 1, marginRight: 8 },
+    salaryText: { fontSize: 15, fontWeight: '700', color: '#00B14F' },
+    
+    roleLabel: { color: '#666', fontSize: 13, marginBottom: 4 },
+    
+    locationContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+    locationText: { fontSize: 12, color: '#5F6368', marginLeft: 4 },
 
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
-    categoryChip: { backgroundColor: '#E0E0E0', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, marginRight: 5 },
-    categoryText: { fontSize: 11, color: '#333' },
+    badgeRow: { flexDirection: 'row', gap: 6 },
+    skillBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    skillBadgeText: { fontSize: 11, fontWeight: '600' },
 
-    locationSalaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    label: { fontSize: 10, color: '#999' },
-    valueText: { fontSize: 12, fontWeight: 'bold', color: '#000' },
-    salaryText: { fontSize: 13, fontWeight: 'bold', color: '#00B14F' },
-
-    callButton: { backgroundColor: '#1E64D3', borderRadius: 15, height: 42, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-    callButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 },
+    actionButton: { backgroundColor: '#1E64D3', borderRadius: 16, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, elevation: 2 },
+    actionButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 15, marginRight: 4 },
 
     emptyBox: { alignItems: 'center', marginTop: 60 },
     emptyText: { color: '#999', fontSize: 16, marginTop: 10 },
