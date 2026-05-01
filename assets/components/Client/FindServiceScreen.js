@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { API_DASHBOARD, SERVER_BASE } from '../../config';
 
@@ -51,11 +52,15 @@ const FindServiceScreen = ({ navigation, route }) => {
     };
 
     // Listen for filter params coming back from FilterationScreen
-    useEffect(() => {
-        if (route.params?.appliedFilters) {
-            setAllFilters(route.params.appliedFilters);
-        }
-    }, [route.params?.appliedFilters]);
+    useFocusEffect(
+        useCallback(() => {
+            if (route.params?.appliedFilters) {
+                setAllFilters(route.params.appliedFilters);
+                // Clear the params to prevent re-triggering on subsequent focuses
+                navigation.setParams({ appliedFilters: undefined });
+            }
+        }, [route.params?.appliedFilters])
+    );
 
     const fetchWorkers = useCallback(async (categoryTab, searchText, currentFilters) => {
         setIsLoading(true);
@@ -117,18 +122,13 @@ const FindServiceScreen = ({ navigation, route }) => {
         }
     }, [navigation]);
 
-    // Initial load + whenever filters change
-    useEffect(() => {
-        fetchWorkers(selectedCategory, search, allFilters);
-    }, [selectedCategory, allFilters]);
-
-    // Search on text change with optimized delay for better responsiveness
+    // Consolidated effect for ALL data fetching triggers (Category, Search, and Advanced Filters)
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchWorkers(selectedCategory, search, allFilters);
-        }, 300); // Reduced delay for more responsive feel
+        }, 300); // Balanced delay for responsiveness and network efficiency
         return () => clearTimeout(timer);
-    }, [search]);
+    }, [selectedCategory, search, allFilters]);
 
     const extractCity = (address) => {
         if (!address || address === 'N/A') return 'N/A';
@@ -138,7 +138,7 @@ const FindServiceScreen = ({ navigation, route }) => {
 
     const renderWorkerCard = ({ item }) => {
         const city = extractCity(item.city);
-        
+
         return (
             <View style={styles.card}>
                 <View style={styles.cardContent}>
@@ -162,12 +162,14 @@ const FindServiceScreen = ({ navigation, route }) => {
                             <Text style={styles.workerName} numberOfLines={1}>{item.name}</Text>
                             <Text style={styles.salaryText}>{item.salary || 'N/A'}</Text>
                         </View>
-
+                        <Text style={styles.genderText}>{item.gender || 'N/A'}</Text>
                         <Text style={styles.roleLabel}>{item.role}</Text>
 
                         <View style={styles.locationContainer}>
                             <Icon name="map-marker-outline" size={14} color="#666" />
-                            <Text style={styles.locationText} numberOfLines={1}>{city}</Text>
+                            <Text style={styles.locationText} numberOfLines={1}>
+                                {city} • {item.gender}
+                            </Text>
                         </View>
 
                         <View style={styles.badgeRow}>
@@ -198,33 +200,30 @@ const FindServiceScreen = ({ navigation, route }) => {
             {/* Header */}
             <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backCircle}>
-                        <Icon name="arrow-left" size={24} color="#555" />
-                    </TouchableOpacity>
-                    <Text style={[styles.welcomeText, { marginLeft: 10 }]}>Welcome, {clientName}</Text>
+                    <Text style={styles.welcomeText}>Welcome, {clientName}</Text>
                 </View>
-                <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <View>
                         <Text style={styles.subHeading}>FIND SERVICE</Text>
                         <Text style={styles.questionText}>What would you like to do?</Text>
                     </View>
-                <TouchableOpacity
-                    style={styles.profileContainer}
-                    onPress={() => navigation.navigate('UserDashboardScreen')}
-                >
-                    <Image
-                        source={{
-                            uri: clientPicture && clientPicture.startsWith('/')
-                                ? `${SERVER_BASE}${clientPicture}`
-                                : 'https://cdn-icons-png.flaticon.com/512/3135/3135768.png'
-                        }}
-                        style={styles.profilePic}
-                        onError={() => console.log('Client image failed:', `${SERVER_BASE}${clientPicture}`)}
-                    />
-                    <View style={styles.profileBadge}>
-                        <Icon name="account" size={14} color="#000" />
-                    </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.profileContainer}
+                        onPress={() => navigation.navigate('UserDashboardScreen')}
+                    >
+                        <Image
+                            source={{
+                                uri: clientPicture && clientPicture.startsWith('/')
+                                    ? `${SERVER_BASE}${clientPicture}`
+                                    : 'https://cdn-icons-png.flaticon.com/512/3135/3135768.png'
+                            }}
+                            style={styles.profilePic}
+                            onError={() => console.log('Client image failed:', `${SERVER_BASE}${clientPicture}`)}
+                        />
+                        <View style={styles.profileBadge}>
+                            <Icon name="account" size={14} color="#000" />
+                        </View>
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -322,16 +321,16 @@ const styles = StyleSheet.create({
     cardContent: { flexDirection: 'row' },
     imageWrapper: { position: 'relative' },
     workerImage: { width: 85, height: 85, borderRadius: 20, backgroundColor: '#F8F9FA' },
-    ratingBadge: { position: 'absolute', bottom: -5, right: -5, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+    ratingBadge: { position: 'absolute', bottom: 19, right: -5, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
     ratingText: { fontSize: 10, fontWeight: 'bold', marginLeft: 2, color: '#333' },
 
     mainInfo: { flex: 1, marginLeft: 16, justifyContent: 'center' },
     headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     workerName: { fontSize: 18, fontWeight: 'bold', color: '#1A1C1E', flex: 1, marginRight: 8 },
     salaryText: { fontSize: 15, fontWeight: '700', color: '#00B14F' },
-    
+    genderText: { fontSize: 15, fontWeight: '700', color: 'grey' },
     roleLabel: { color: '#666', fontSize: 13, marginBottom: 4 },
-    
+
     locationContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
     locationText: { fontSize: 12, color: '#5F6368', marginLeft: 4 },
 

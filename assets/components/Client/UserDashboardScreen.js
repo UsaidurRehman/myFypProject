@@ -163,6 +163,11 @@ const UserDashboard = ({ navigation }) => {
 
   const renderHeader = () => (
     <View>
+      {/* Back Button */}
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <Icon name="arrow-left" size={24} color="#555" />
+      </TouchableOpacity>
+
       {/* Profile Header */}
       <View style={styles.profileSection}>
         <View style={{ flex: 1 }}>
@@ -270,6 +275,7 @@ const styles = StyleSheet.create({
   },
   greetingText: { fontSize: 13, color: '#666', fontWeight: '500' },
   userName: { fontSize: 24, fontWeight: 'bold', color: '#000', marginTop: 2 },
+  backBtn: { padding: 10, alignSelf: 'flex-start', marginBottom: 5 },
   headerButtons: { flexDirection: 'row', marginTop: 15 },
   smallBlueBtn: { 
     backgroundColor: '#1E64D3', 

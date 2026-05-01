@@ -6,11 +6,12 @@ import {
     Image,
     ScrollView,
     SafeAreaView,
-    StatusBar
+    StatusBar,
+    TouchableOpacity
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const WorkerTerminatedScreen = () => {
+const WorkerTerminatedScreen = ({ navigation }) => {
     // Static data from the design
     const terminationData = {
         worker: {
@@ -41,6 +42,9 @@ const WorkerTerminatedScreen = () => {
             <View style={styles.bgCircle} />
 
             <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                    <Icon name="arrow-left" size={24} color="#555" />
+                </TouchableOpacity>
                 <Text style={styles.breadcrumb}>Contract {'>'} Worker <Text style={styles.blueText}>Terminated</Text></Text>
                 <Image
                     source={{ uri: 'https://servantmaidonline.com/logo.png' }}
@@ -119,8 +123,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 20
+        padding: 20,
+        paddingTop: 10,
     },
+    backBtn: { padding: 5 },
     breadcrumb: { fontSize: 16, color: '#666' },
     blueText: { color: '#2C3BE0', fontWeight: 'bold' },
     logo: { width: 40, height: 40 },

@@ -199,9 +199,12 @@ const JobConfirmationScreen = ({ navigation }) => {
 
             <View style={styles.header}>
                 <View style={styles.titleRow}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                        <Icon name="arrow-left" size={24} color="#555" />
+                    </TouchableOpacity>
                     <Text style={styles.headerTitle}>Job Confirmation</Text>
                     <Image
-                        source={{ uri: 'https://servantmaidonline.com/logo.png' }} // Use your local logo asset
+                        source={{ uri: 'https://servantmaidonline.com/logo.png' }}
                         style={styles.logo}
                     />
                 </View>
@@ -246,11 +249,11 @@ const styles = StyleSheet.create({
     header: { padding: 20 },
     titleRow: {
         flexDirection: 'row',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 15,
-        position: 'relative'
     },
+    backBtn: { padding: 5 },
     headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#000' },
     logo: { width: 40, height: 40, position: 'absolute', right: 0 },
     searchBar: {
