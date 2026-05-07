@@ -88,7 +88,7 @@ const ActiveRequestScreen = ({ navigation }) => {
 
         const imageUrl = workerImage && workerImage.startsWith('/')
             ? { uri: `${SERVER_BASE}${workerImage}` }
-            : (workerImage ? { uri: `${SERVER_BASE}/images/${workerImage}` } : require('../../images/default-user.png'));
+            : (workerImage ? { uri: `${SERVER_BASE}/Images/${workerImage}` } : require('../../images/default-user.png'));
 
         // Rule 2 / Block 1: Worker rejected the interview
         if (workerDecision === 'Rejected') {

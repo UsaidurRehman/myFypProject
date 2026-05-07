@@ -19,7 +19,7 @@ const WorkerTerminationScreen = ({ navigation }) => {
         try {
             const workerId = await AsyncStorage.getItem('workerId');
             const token = await AsyncStorage.getItem('userToken');
-            
+
             const response = await fetch(`${SERVER_BASE}/api/Dashboard/GetLatestTermination/${workerId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -46,7 +46,7 @@ const WorkerTerminationScreen = ({ navigation }) => {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="dark-content" />
-            
+
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Icon name="arrow-left" size={24} color="#333" />
@@ -65,8 +65,8 @@ const WorkerTerminationScreen = ({ navigation }) => {
                         <Text style={styles.emptySubtitle}>
                             You currently have no recorded terminations. Your professional record is clean.
                         </Text>
-                        <TouchableOpacity 
-                            style={styles.goBackBtn} 
+                        <TouchableOpacity
+                            style={styles.goBackBtn}
                             onPress={() => navigation.goBack()}
                         >
                             <Text style={styles.goBackText}>Return to Dashboard</Text>
@@ -111,13 +111,13 @@ const WorkerTerminationScreen = ({ navigation }) => {
                         {/* Employer Info */}
                         <Text style={styles.sectionTitle}>Employer Details</Text>
                         <View style={styles.employerCard}>
-                            <Image 
-                                source={{ 
-                                    uri: termination.clientPicture 
-                                        ? `${SERVER_BASE}${termination.clientPicture}` 
-                                        : 'https://cdn-icons-png.flaticon.com/512/3135/3135768.png' 
-                                }} 
-                                style={styles.employerAvatar} 
+                            <Image
+                                source={{
+                                    uri: termination.clientPicture
+                                        ? `${SERVER_BASE}${termination.clientPicture}`
+                                        : 'https://cdn-icons-png.flaticon.com/512/3135/3135768.png'
+                                }}
+                                style={styles.employerAvatar}
                             />
                             <View style={styles.employerInfo}>
                                 <Text style={styles.employerName}>{termination.clientName}</Text>
@@ -129,17 +129,10 @@ const WorkerTerminationScreen = ({ navigation }) => {
                         <View style={styles.infoBox}>
                             <Icon name="information-outline" size={22} color="#1E64D3" />
                             <Text style={styles.infoBoxText}>
-                                Termination is a part of professional life. Don't be discouraged! 
+                                Termination is a part of professional life. Don't be discouraged!
                                 Your profile is now visible for other potential employers.
                             </Text>
                         </View>
-
-                        <TouchableOpacity 
-                            style={styles.findJobBtn}
-                            onPress={() => navigation.navigate('EarningsScreen')} // Or a job hunt screen
-                        >
-                            <Text style={styles.findJobText}>View My Earnings</Text>
-                        </TouchableOpacity>
                     </View>
                 )}
             </ScrollView>
@@ -188,22 +181,22 @@ const styles = StyleSheet.create({
     goBackText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 
     // Active State
-    statusCard: { 
-        backgroundColor: '#FFF', 
-        borderRadius: 20, 
-        padding: 20, 
-        elevation: 4, 
+    statusCard: {
+        backgroundColor: '#FFF',
+        borderRadius: 20,
+        padding: 20,
+        elevation: 4,
         marginBottom: 25,
         borderLeftWidth: 8,
         borderLeftColor: '#E63917'
     },
     statusHeader: { flexDirection: 'row', alignItems: 'center' },
-    alertIcon: { 
-        width: 50, 
-        height: 50, 
-        borderRadius: 25, 
-        backgroundColor: '#FFEBEE', 
-        justifyContent: 'center', 
+    alertIcon: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: '#FFEBEE',
+        justifyContent: 'center',
         alignItems: 'center',
         marginRight: 15
     },
@@ -214,18 +207,18 @@ const styles = StyleSheet.create({
     dateText: { marginLeft: 10, color: '#555', fontSize: 15, fontWeight: '500' },
 
     sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15, marginLeft: 5 },
-    reasonCard: { 
-        backgroundColor: '#E3F2FD', 
-        borderRadius: 20, 
-        padding: 20, 
+    reasonCard: {
+        backgroundColor: '#E3F2FD',
+        borderRadius: 20,
+        padding: 20,
         marginBottom: 25,
         borderWidth: 1,
         borderColor: '#BBDEFB'
     },
-    reasonText: { 
-        fontSize: 16, 
-        color: '#1E64D3', 
-        lineHeight: 24, 
+    reasonText: {
+        fontSize: 16,
+        color: '#1E64D3',
+        lineHeight: 24,
         fontStyle: 'italic',
         textAlign: 'center',
         marginVertical: 5,

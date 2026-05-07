@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet, View, Text, Image, TouchableOpacity,
   FlatList, SafeAreaView, StatusBar, ActivityIndicator, Alert
@@ -22,10 +23,12 @@ const UserDashboard = ({ navigation }) => {
   const [hiredCount, setHiredCount] = useState(0);
   const [pendingInterviewsCount, setPendingInterviewsCount] = useState(0);
 
-  useEffect(() => {
-    loadUserInfo();
-    fetchWorkers();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUserInfo();
+      fetchWorkers();
+    }, [])
+  );
 
   const loadUserInfo = async () => {
     try {

@@ -75,9 +75,15 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
 
                     <View style={styles.statusBadge}>
-                        <View style={[styles.statusDot, worker.availability !== "Available 24/7" && { backgroundColor: '#FF5722' }]} />
-                        <Text style={[styles.statusText, worker.availability !== "Available 24/7" && { color: '#FF5722' }]}>
-                            {worker.availability === "Available 24/7" ? "ACTIVE" : "BOOKED"}
+                        <View style={[
+                            styles.statusDot, 
+                            (worker.availability === "NOT AVAILABLE" || worker.availability === "Currently Booked") && { backgroundColor: '#FF0000' }
+                        ]} />
+                        <Text style={[
+                            styles.statusText, 
+                            (worker.availability === "NOT AVAILABLE" || worker.availability === "Currently Booked") && { color: '#FF0000' }
+                        ]}>
+                            {worker.availability === "Available 24/7" ? "ACTIVE" : worker.availability}
                         </Text>
                     </View>
                 </View>
@@ -210,8 +216,11 @@ const WorkerDetailScreen = ({ navigation, route }) => {
             {/* Sticky Bottom Button */}
             <View style={styles.footer}>
                 <TouchableOpacity
-                    style={[styles.callBtn, worker.hasActiveInterview && { backgroundColor: '#B0BEC5' }]}
-                    disabled={worker.hasActiveInterview}
+                    style={[
+                        styles.callBtn, 
+                        (worker.hasActiveInterview || worker.availability === "NOT AVAILABLE") && { backgroundColor: '#B0BEC5' }
+                    ]}
+                    disabled={worker.hasActiveInterview || worker.availability === "NOT AVAILABLE"}
                     onPress={() => navigation.navigate('InterviewSelectionScreen', {
                         workerId: worker.id,
                         workerName: worker.name
@@ -220,9 +229,11 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                     <Text style={styles.callBtnText}>
                         {worker.activeInterviewStatus === "Finalized" || worker.activeInterviewStatus === "Hired" 
                             ? "Worker Hired" 
-                            : worker.hasActiveInterview 
-                                ? "Interview Request Pending" 
-                                : "Call For Interview"}
+                            : worker.availability === "NOT AVAILABLE"
+                                ? "Worker Not Available"
+                                : worker.hasActiveInterview 
+                                    ? "Interview Request Pending" 
+                                    : "Call For Interview"}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -256,15 +267,22 @@ const ExperienceItem = ({ title, period, bullets, isActive }) => (
     </View>
 );
 
-const ReviewCard = ({ name, duration, text }) => (
+const ReviewCard = ({ name, rating, date, text }) => (
     <View style={styles.reviewCard}>
         <View style={styles.rowBetween}>
             <Text style={styles.reviewName}>{name}</Text>
             <View style={styles.stars}>
-                {[1, 2, 3, 4, 5].map(i => <Icon key={i} name="star" size={14} color="#FFD700" />)}
+                {[1, 2, 3, 4, 5].map(i => (
+                    <Icon 
+                        key={i} 
+                        name={i <= rating ? "star" : "star-outline"} 
+                        size={14} 
+                        color={i <= rating ? "#FFD700" : "#CCC"} 
+                    />
+                ))}
             </View>
         </View>
-        <Text style={styles.reviewDuration}>{duration}</Text>
+        <Text style={styles.reviewDuration}>{date}</Text>
         <Text style={styles.reviewText}>"{text}"</Text>
     </View>
 );

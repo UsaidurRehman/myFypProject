@@ -54,7 +54,7 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
             stars.push(
                 <Icon
                     key={i}
-                    name="star"
+                    name={i <= Math.round(rating) ? "star" : "star-outline"}
                     size={18}
                     color={i <= Math.round(rating) ? "#FFD700" : "#E0E0E0"}
                 />
@@ -68,7 +68,7 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
         const roundedRating = Math.round(parseFloat(rating));
         for (let i = 1; i <= 5; i++) {
             stars.push(
-                <Icon key={i} name="star" size={30} color={i <= roundedRating ? "#FFD700" : "#E0E0E0"} />
+                <Icon key={i} name={i <= roundedRating ? "star" : "star-outline"} size={30} color={i <= roundedRating ? "#FFD700" : "#E0E0E0"} />
             );
         }
         return stars;

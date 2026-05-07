@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     StyleSheet, View, Text, Image, ScrollView,
     TouchableOpacity, SafeAreaView, Switch, ActivityIndicator, Alert
@@ -13,10 +14,11 @@ const WorkerDashboardScreen = ({ navigation }) => {
     const [worker, setWorker] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
-
-    useEffect(() => {
-        fetchWorkerDetails();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            fetchWorkerDetails();
+        }, [])
+    );
 
     const fetchWorkerDetails = async () => {
         setIsLoading(true);
@@ -43,6 +45,7 @@ const WorkerDashboardScreen = ({ navigation }) => {
             if (response.ok) {
                 const data = await response.json();
                 setWorker(data);
+                setIsDutyOn(data.availableStatus ?? true); // Set switch state from backend
             } else if (response.status === 401) {
                 NotificationHelper.showError("Session expired. Please login again.");
                 navigation.replace('Login');
@@ -76,6 +79,32 @@ const WorkerDashboardScreen = ({ navigation }) => {
             isEdit: true,
             initialData: worker
         });
+    };
+
+    const handleDutyToggle = async (value) => {
+        setIsDutyOn(value);
+        try {
+            const workerId = await AsyncStorage.getItem('workerId');
+            const token = await AsyncStorage.getItem('userToken');
+            
+            const response = await fetch(`${SERVER_BASE}/api/Dashboard/UpdateDutyStatus/${workerId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(value)
+            });
+
+            if (!response.ok) {
+                setIsDutyOn(!value); // Revert on failure
+                NotificationHelper.showError("Failed to update duty status.");
+            }
+        } catch (error) {
+            setIsDutyOn(!value); // Revert on failure
+            console.error("Duty toggle error:", error);
+            NotificationHelper.showError("Network error.");
+        }
     };
 
     if (isLoading) {
@@ -145,7 +174,7 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         </View>
                         <Switch
                             value={isDutyOn}
-                            onValueChange={setIsDutyOn}
+                            onValueChange={handleDutyToggle}
                             trackColor={{ false: "#767577", true: "#4CAF50" }}
                             thumbColor="#FFF"
                         />

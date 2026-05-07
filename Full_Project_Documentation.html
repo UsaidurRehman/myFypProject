@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Project Architecture - FYP</title>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+    <style>
+        :root {
+            --primary: #1e40af;
+            --secondary: #475569;
+            --accent: #3b82f6;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --text: #0f172a;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background: #1e293b;
+            color: white;
+            padding: 4rem 1rem;
+            text-align: center;
+        }
+        .container {
+            max-width: 1100px;
+            margin: -3rem auto 3rem;
+            padding: 0 1rem;
+        }
+        .section {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: var(--primary);
+            font-size: 1.75rem;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        h3 {
+            color: var(--secondary);
+            font-size: 1.25rem;
+            margin-top: 2rem;
+            border-left: 4px solid var(--accent);
+            padding-left: 1rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+        }
+        .method {
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        .get { background: #dcfce7; color: #15803d; }
+        .post { background: #dbeafe; color: #1d4ed8; }
+        .put { background: #fef3c7; color: #a16207; }
+        .delete { background: #fee2e2; color: #b91c1c; }
+        
+        .mermaid {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        code {
+            background: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .flow-step {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            align-items: flex-start;
+        }
+        .step-num {
+            background: var(--primary);
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Master Project Documentation</h1>
+    <p>Complete End-to-End Logic Mapping for FYP Service Marketplace</p>
+</header>
+
+<div class="container">
+
+    <!-- 1. AUTH FLOW -->
+    <section class="section">
+        <h2>🔑 1. User Onboarding & Auth</h2>
+        <p>The entry point for both strictly separate roles (Client & Worker).</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Frontend Screen</th>
+                    <th>Action</th>
+                    <th>Backend Endpoint</th>
+                    <th>Key Logic</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>LoginScreen</td>
+                    <td>Auth</td>
+                    <td><code><span class="method post">POST</span> /api/Auth/login</code></td>
+                    <td>Returns JWT Token + <code>Role</code> (Client/Worker).</td>
+                </tr>
+                <tr>
+                    <td>SignupScreen</td>
+                    <td>Register</td>
+                    <td><code><span class="method post">POST</span> /api/AccountCreation/Register...</code></td>
+                    <td>Creates record in either <code>Client</code> or <code>Worker</code> table.</td>
+                </tr>
+                <tr>
+                    <td>AddSkillScreen</td>
+                    <td>Setup</td>
+                    <td><code><span class="method post">POST</span> /api/AccountCreation/AddWorkerSkills</code></td>
+                    <td>Links Worker ID to multiple Skill IDs in junction table.</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 2. CORE HIRING FLOW -->
+    <section class="section">
+        <h2>🛠️ 2. Core Hiring Lifecycle (The Handshake)</h2>
+        <p>This follows a strict multi-step confirmation process between Client and Worker.</p>
+        
+        <div class="mermaid">
+            sequenceDiagram
+                participant C as Client App
+                participant B as .NET Backend
+                participant W as Worker App
+
+                Note over C,W: Phase 1: Invitation
+                C->>B: POST /BookInterview
+                B->>W: GET /GetWorkerRequests
+                
+                Note over C,W: Phase 2: Worker Interest
+                W->>B: PUT /UpdateWorkerDecision (Accept)
+                B->>C: GET /GetActiveRequests (Worker Accepted)
+                
+                Note over C,W: Phase 3: Client Hiring
+                C->>B: PUT /UpdateHiringStatus (Hire)
+                B->>W: GET /GetWorkerJobConfirmations (You are Hired!)
+                
+                Note over C,W: Phase 4: Final Start
+                W->>B: PUT /WorkerAcceptJobOffer
+                C->>B: PUT /ClientConfirmWorkerAcceptance
+                Note right of B: Status = "Finalized"
+        </div>
+
+        <h3>Screen-by-Screen Breakdown</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Step</th>
+                    <th>Screen</th>
+                    <th>API Call</th>
+                    <th>Data Context</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>FindServiceScreen</td>
+                    <td><code><span class="method get">GET</span> /GetWorkersForClient</code></td>
+                    <td>Search & Search results list.</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>WorkerDetailScreen</td>
+                    <td><code><span class="method get">GET</span> /GetWorkerDetail/{id}</code></td>
+                    <td>Full profile, reviews, and current job status.</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>InterviewSelection</td>
+                    <td><code><span class="method post">POST</span> /BookInterview</code></td>
+                    <td>Sets <code>Status: Pending</code>, <code>HiringDecision: Pending</code>.</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>ActiveRequests (W)</td>
+                    <td><code><span class="method put">PUT</span> /UpdateWorkerDecision</code></td>
+                    <td>Worker chooses "Accept" or "Reject" for interview.</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>ActiveRequest (C)</td>
+                    <td><code><span class="method get">GET</span> /GetActiveRequests</code></td>
+                    <td>Client sees if the worker is interested.</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>JobConfirmation (W)</td>
+                    <td><code><span class="method put">PUT</span> /WorkerAcceptJobOffer</code></td>
+                    <td>Worker final "Yes" to start working.</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 3. OFFBOARDING FLOW -->
+    <section class="section">
+        <h2>🚪 3. Contract Termination & Feedback</h2>
+        <p>How jobs are ended, either voluntarily (Resignation) or by the client (Termination).</p>
+        
+        <h3>Flow A: Worker Resignation</h3>
+        <div class="flow-step"><div class="step-num">1</div><div><b>LeaveJobScreen:</b> Worker submits <code>ResignationReason</code> and <code>LastWorkingDate</code>.</div></div>
+        <div class="flow-step"><div class="step-num">2</div><div><b>ResignationsScreen (C):</b> Client views the list of incoming notices.</div></div>
+        <div class="flow-step"><div class="step-num">3</div><div><b>ResignationScreen (C):</b> Client confirms the end of job and submits a <b>Rating/Review</b>.</div></div>
+
+        <h3>Flow B: Client Termination</h3>
+        <div class="flow-step"><div class="step-num">1</div><div><b>TerminateContractScreen:</b> Client fires worker immediately.</div></div>
+        <div class="flow-step"><div class="step-num">2</div><div><b>Backend Logic:</b> Status becomes <code>Terminated</code>, review is stored, and <code>Termination</code> record is created.</div></div>
+    </section>
+
+    <!-- 4. FLUTTER CONFIG -->
+    <section class="section">
+        <h2>📱 4. Flutter Integration Checklist</h2>
+        <p>For running the same project on another device.</p>
+        <ul>
+            <li><b>Config:</b> Ensure <code>_ipAddress</code> matches your PC's Wi-Fi IP (from <code>ipconfig</code>).</li>
+            <li><b>Android:</b> Set <code>android:usesCleartextTraffic="true"</code> in Manifest.</li>
+            <li><b>iOS:</b> Set <code>NSAllowsArbitraryLoads</code> to <code>true</code> in Info.plist.</li>
+            <li><b>Connection:</b> Phone and PC must be on the same local network.</li>
+        </ul>
+    </section>
+
+</div>
+
+<footer style="text-align:center; padding: 2rem; color: #64748b;">
+    &copy; 2026 FYP Service Marketplace Documentation
+</footer>
+
+</body>
+</html>

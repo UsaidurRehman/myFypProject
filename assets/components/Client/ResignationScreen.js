@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-    StyleSheet, View, Text, Image, TouchableOpacity, 
-    TextInput, SafeAreaView, ScrollView, StatusBar, 
+    StyleSheet, View, Text, Image, TouchableOpacity,
+    TextInput, SafeAreaView, ScrollView, StatusBar,
     ActivityIndicator, Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -84,10 +84,10 @@ const ResignationScreen = ({ route, navigation }) => {
             <View style={styles.starRow}>
                 {[1, 2, 3, 4, 5].map((star) => (
                     <TouchableOpacity key={star} onPress={() => setRating(star)}>
-                        <Icon 
-                            name={star <= rating ? "star" : "star-outline"} 
-                            size={20} 
-                            color={star <= rating ? "#FFD700" : "#666"} 
+                        <Icon
+                            name={star <= rating ? "star" : "star-outline"}
+                            size={20}
+                            color={star <= rating ? "#FFD700" : "#666"}
                         />
                     </TouchableOpacity>
                 ))}
@@ -108,7 +108,7 @@ const ResignationScreen = ({ route, navigation }) => {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="dark-content" />
-            
+
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backCircle}>
@@ -119,15 +119,16 @@ const ResignationScreen = ({ route, navigation }) => {
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                
+
                 {/* Profile Header */}
                 <View style={styles.profileRow}>
-                    <Image 
-                        source={{ uri: data.workerAvatar && data.workerAvatar.startsWith('/') 
-                            ? `${SERVER_BASE}${data.workerAvatar}` 
-                            : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' 
-                        }} 
-                        style={styles.avatar} 
+                    <Image
+                        source={{
+                            uri: data.workerAvatar && data.workerAvatar.startsWith('/')
+                                ? `${SERVER_BASE}${data.workerAvatar}`
+                                : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+                        }}
+                        style={styles.avatar}
                     />
                     <View style={styles.profileText}>
                         <Text style={styles.workerName}>{data.workerName}</Text>
@@ -144,7 +145,7 @@ const ResignationScreen = ({ route, navigation }) => {
                     <View style={styles.noticeBody}>
                         <Text style={styles.noticeStatusLabel}>Notice Period Status</Text>
                         <Text style={styles.remainingText}>Remaining Days: <Text style={styles.boldBlue}>{data.remainingDays}</Text></Text>
-                        
+
                         <View style={styles.progressBarContainer}>
                             <View style={[styles.progressBarFill, { width: `${data.progress * 100}%` }]} />
                         </View>
@@ -173,22 +174,19 @@ const ResignationScreen = ({ route, navigation }) => {
                         {renderStars()}
                     </View>
                     <View style={styles.remarksInputContainer}>
-                        <TextInput 
+                        <TextInput
                             style={styles.remarksInput}
                             placeholder="Enter your remarks here"
                             placeholderTextColor="#999"
                             value={remarks}
                             onChangeText={setRemarks}
                         />
-                        <TouchableOpacity style={styles.submitSmallBtn}>
-                            <Text style={styles.submitBtnText}>Submit</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Confirm Button */}
-                <TouchableOpacity 
-                    style={[styles.confirmBtn, isSubmitting && { opacity: 0.7 }]} 
+                <TouchableOpacity
+                    style={[styles.confirmBtn, isSubmitting && { opacity: 0.7 }]}
                     onPress={handleConfirmResignation}
                     disabled={isSubmitting}
                 >
@@ -207,20 +205,20 @@ const ResignationScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFF' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        paddingHorizontal: 20, 
-        paddingVertical: 15 
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 15
     },
-    backCircle: { 
-        width: 35, 
-        height: 35, 
-        borderRadius: 17.5, 
-        backgroundColor: '#F0F0F0', 
-        alignItems: 'center', 
-        justifyContent: 'center' 
+    backCircle: {
+        width: 35,
+        height: 35,
+        borderRadius: 17.5,
+        backgroundColor: '#F0F0F0',
+        alignItems: 'center',
+        justifyContent: 'center'
     },
     headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center', marginLeft: -20 },
     logo: { width: 40, height: 40 },
@@ -249,11 +247,11 @@ const styles = StyleSheet.create({
     noticeStatusLabel: { fontSize: 18, fontWeight: 'bold', color: '#000' },
     remainingText: { fontSize: 16, color: '#666', marginTop: 5 },
     boldBlue: { color: '#5B4CF2', fontWeight: 'bold' },
-    progressBarContainer: { 
-        height: 6, 
-        backgroundColor: '#EEE', 
-        borderRadius: 3, 
-        marginTop: 15, 
+    progressBarContainer: {
+        height: 6,
+        backgroundColor: '#EEE',
+        borderRadius: 3,
+        marginTop: 15,
         overflow: 'hidden',
         width: '100%'
     },
@@ -261,18 +259,18 @@ const styles = StyleSheet.create({
 
     section: { marginBottom: 20 },
     sectionTitle: { fontSize: 22, fontWeight: 'bold', color: '#000', marginBottom: 10 },
-    readonlyBox: { 
-        borderWidth: 1, 
-        borderColor: '#CCC', 
-        borderRadius: 10, 
-        padding: 12, 
-        backgroundColor: '#FFF' 
+    readonlyBox: {
+        borderWidth: 1,
+        borderColor: '#CCC',
+        borderRadius: 10,
+        padding: 12,
+        backgroundColor: '#FFF'
     },
-    reasonBox: { 
-        borderWidth: 1, 
-        borderColor: '#CCC', 
-        borderRadius: 10, 
-        padding: 12, 
+    reasonBox: {
+        borderWidth: 1,
+        borderColor: '#CCC',
+        borderRadius: 10,
+        padding: 12,
         backgroundColor: '#FFF',
         minHeight: 100
     },
@@ -287,31 +285,31 @@ const styles = StyleSheet.create({
     },
     remarksHeader: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 5 },
     starRow: { flexDirection: 'row' },
-    remarksInputContainer: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        borderWidth: 1, 
-        borderColor: '#CCC', 
-        borderRadius: 20, 
+    remarksInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#CCC',
+        borderRadius: 20,
         paddingHorizontal: 15,
         height: 45
     },
     remarksInput: { flex: 1, fontSize: 14, color: '#000' },
-    submitSmallBtn: { 
-        backgroundColor: '#1E64D3', 
-        paddingHorizontal: 20, 
-        height: 30, 
-        borderRadius: 15, 
+    submitSmallBtn: {
+        backgroundColor: '#1E64D3',
+        paddingHorizontal: 20,
+        height: 30,
+        borderRadius: 15,
         justifyContent: 'center',
         elevation: 3
     },
     submitBtnText: { color: '#FFF', fontSize: 13, fontWeight: 'bold' },
 
-    confirmBtn: { 
-        backgroundColor: '#008000', 
-        height: 55, 
-        borderRadius: 10, 
-        justifyContent: 'center', 
+    confirmBtn: {
+        backgroundColor: '#008000',
+        height: 55,
+        borderRadius: 10,
+        justifyContent: 'center',
         alignItems: 'center',
         elevation: 5
     },

@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   backArrow: { padding: 8, backgroundColor: '#F0F0F0', borderRadius: 20 },
   headerTitle: { fontSize: 22, fontWeight: 'bold' },
   headerLogo: { width: 40, height: 40 },
-  scrollContent: { padding: 20, paddingBottom: 40 },
+  scrollContent: { padding: 20, paddingBottom: 100 },
   sectionLabel: { fontSize: 14, fontWeight: 'bold', marginBottom: 10 },
   roleContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   roleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '48%', height: 60, borderRadius: 15, borderWidth: 1, borderColor: '#EEE', elevation: 3, backgroundColor: '#FFF' },

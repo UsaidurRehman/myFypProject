@@ -173,9 +173,14 @@ const FindServiceScreen = ({ navigation, route }) => {
                         </View>
 
                         <View style={styles.badgeRow}>
-                            {item.categories && item.categories.slice(0, 2).map((cat, index) => (
-                                <View key={index} style={[styles.skillBadge, { backgroundColor: index === 0 ? '#E8F0FE' : '#F1F3F4' }]}>
-                                    <Text style={[styles.skillBadgeText, { color: index === 0 ? '#1E64D3' : '#5F6368' }]}>{cat}</Text>
+                            <View style={[styles.skillBadge, { backgroundColor: item.availableStatus ? '#E8F0FE' : '#FFEBEE' }]}>
+                                <Text style={[styles.skillBadgeText, { color: item.availableStatus ? '#1E64D3' : '#D32F2F', fontWeight: 'bold' }]}>
+                                    {item.availableStatus ? 'Available' : 'Not Available'}
+                                </Text>
+                            </View>
+                            {item.categories && item.categories.slice(0, 1).map((cat, index) => (
+                                <View key={index} style={[styles.skillBadge, { backgroundColor: '#F1F3F4' }]}>
+                                    <Text style={[styles.skillBadgeText, { color: '#5F6368' }]}>{cat}</Text>
                                 </View>
                             ))}
                         </View>
