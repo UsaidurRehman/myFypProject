@@ -23,7 +23,7 @@ const FilterationScreen = ({ navigation, route }) => {
 
     // States for various filters
     const [selectedGender, setSelectedGender] = useState('');
-    const [selectedSkills, setSelectedSkills] = useState([]); // Array of Category names
+    const [selectedSkills, setSelectedSkills] = useState([]); // Array of Category IDs or names
     const [selectedCity, setSelectedCity] = useState('');
     const [cityModalVisible, setCityModalVisible] = useState(false);
 
@@ -42,13 +42,12 @@ const FilterationScreen = ({ navigation, route }) => {
             const { gender, city, categories, subSkills } = route.params.initialFilters;
             setSelectedGender(gender || '');
             setSelectedCity(city || '');
-            setSelectedSkills(categories || []);
-            
-            // Deep copy subSkills or ensure it matches structure
+            setSelectedSkills((categories || []).map(item => item?.toString ? item.toString() : item));
+
             if (subSkills) {
-                const syncedSubFilters = { ...subFilters };
+                const syncedSubFilters = {};
                 Object.keys(subSkills).forEach(key => {
-                    syncedSubFilters[key] = [...subSkills[key]];
+                    syncedSubFilters[key] = Array.isArray(subSkills[key]) ? [...subSkills[key]] : [];
                 });
                 setSubFilters(syncedSubFilters);
             }
@@ -93,13 +92,37 @@ const FilterationScreen = ({ navigation, route }) => {
     //     }
     // };
 
-    const toggleSkillSelection = (categoryId) => { // Change parameter to ID
-    if (selectedSkills.includes(categoryId)) {
-        setSelectedSkills(selectedSkills.filter(id => id !== categoryId));
-    } else {
-        setSelectedSkills([...selectedSkills, categoryId]);
-    }
-};
+    const toggleSkillSelection = (categoryId) => {
+        const id = categoryId?.toString();
+        const categoryName = getCategoryLabel(id);
+        const isSelected = selectedSkills.some(item => {
+            const itemName = getCategoryLabel(item);
+            return item === id || item === categoryName || itemName === categoryName;
+        });
+
+        if (isSelected) {
+            setSelectedSkills(selectedSkills.filter(item => {
+                const itemName = getCategoryLabel(item);
+                return item !== id && item !== categoryName && itemName !== categoryName;
+            }));
+        } else {
+            setSelectedSkills([...selectedSkills, id]);
+        }
+    };
+
+    const isCategorySelected = (cat) => {
+        const idString = cat.categoryId?.toString();
+        return selectedSkills.some(item => {
+            const itemName = getCategoryLabel(item);
+            return item === idString || item === cat.categoryName || itemName === cat.categoryName;
+        });
+    };
+
+    const getCategoryLabel = (selection) => {
+        const match = allCategories.find(cat => cat.categoryId?.toString() === selection || cat.categoryName === selection);
+        return match ? match.categoryName : selection;
+    };
+
     const toggleSubFilter = (category, value) => {
         let current = subFilters[category] ? [...subFilters[category]] : [];
         if (current.includes(value)) {
@@ -204,7 +227,7 @@ const FilterationScreen = ({ navigation, route }) => {
                     {selectedGender ? <FilterTag label={selectedGender} onRemove={() => setSelectedGender('')} /> : null}
                     {selectedCity ? <FilterTag label={selectedCity} onRemove={() => setSelectedCity('')} /> : null}
                     {selectedSkills.map(s => (
-                        <FilterTag key={`tag-${s}`} label={s} onRemove={() => toggleSkillSelection(s)} />
+                        <FilterTag key={`tag-${s}`} label={getCategoryLabel(s)} onRemove={() => toggleSkillSelection(s)} />
                     ))}
                 </View>
 
@@ -245,20 +268,20 @@ const FilterationScreen = ({ navigation, route }) => {
                                 </TouchableOpacity>
                             ))} */}
                             {allCategories.map(cat => (
-    <TouchableOpacity
-        key={cat.categoryId}
-        onPress={() => toggleSkillSelection(cat.categoryId)} // Pass ID
-        style={[
-            styles.choiceBtn, 
-            { paddingHorizontal: 20, minWidth: 100 }, 
-            selectedSkills.includes(cat.categoryId) && styles.activeBtn // Compare ID
-        ]}
-    >
-        <Text style={[styles.choiceText, selectedSkills.includes(cat.categoryId) && styles.activeText]}>
-            {cat.categoryName}
-        </Text>
-    </TouchableOpacity>
-))}
+                                <TouchableOpacity
+                                    key={cat.categoryId}
+                                    onPress={() => toggleSkillSelection(cat.categoryId)}
+                                    style={[
+                                        styles.choiceBtn,
+                                        { paddingHorizontal: 20, minWidth: 100 },
+                                        isCategorySelected(cat) && styles.activeBtn
+                                    ]}
+                                >
+                                    <Text style={[styles.choiceText, isCategorySelected(cat) && styles.activeText]}>
+                                        {cat.categoryName}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
                         </ScrollView>
                     </View>
                 </View>
@@ -288,8 +311,8 @@ const FilterationScreen = ({ navigation, route }) => {
                             <Text style={styles.sectionTitle}>Sub-Category</Text>
                         </View>
 
-                        {/* {allCategories
-                            .filter(cat => selectedSkills.includes(cat.categoryName))
+                        {allCategories
+                            .filter(cat => isCategorySelected(cat))
                             .map(cat => (
                                 <SubSection
                                     key={`sub-${cat.categoryId}`}
@@ -298,28 +321,7 @@ const FilterationScreen = ({ navigation, route }) => {
                                     selected={subFilters[cat.categoryName] || []}
                                     onToggle={(val) => toggleSubFilter(cat.categoryName, val)}
                                 />
-                            ))} */}
-                            {/* Sub-Category Section (Dynamic) */}
-{selectedSkills.length > 0 && (
-    <View style={styles.subCategoryCard}>
-        <View style={styles.sectionHeader}>
-            <Icon name="reorder-horizontal" size={20} color="#000" />
-            <Text style={styles.sectionTitle}>Sub-Category</Text>
-        </View>
-
-        {allCategories
-            .filter(cat => selectedSkills.includes(cat.categoryId)) // Filter by ID
-            .map(cat => (
-                <SubSection
-                    key={`sub-${cat.categoryId}`}
-                    title={cat.categoryName}
-                    options={cat.skills}
-                    selected={subFilters[cat.categoryName] || []}
-                    onToggle={(val) => toggleSubFilter(cat.categoryName, val)}
-                />
-            ))}
-    </View>
-)}
+                            ))}
                     </View>
                 )}
             </ScrollView>

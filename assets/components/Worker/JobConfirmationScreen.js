@@ -799,8 +799,11 @@ const JobConfirmationScreen = ({ navigation }) => {
 
         // Determine UI state
         const pendingWorker = type === 'offered';
-        const rejectedWorker = type === 'rejected';
-        const acceptedWorker = type === 'accepted';
+        const rawStatus = status ? status.toString() : '';
+        const statusLower = rawStatus.toLowerCase();
+        const rejectedByClient = statusLower.includes('unable') || statusLower.includes('sorry') || statusLower.includes('rejected');
+        const rejectedWorker = type === 'rejected' || rejectedByClient;
+        const acceptedWorker = type === 'accepted' && !rejectedByClient;
         const finalized = type === 'final';
         const terminated = type === 'terminated';
 
@@ -826,16 +829,24 @@ const JobConfirmationScreen = ({ navigation }) => {
             statusTextColor = '#E65100';
             statusHeaderText = 'New Job Offer';
         } else if (acceptedWorker) {
-            borderColor = '#4CAF50';
-            statusBg = '#C8E6C9';
-            statusTextColor = '#388E3C';
-            statusHeaderText = 'Awaiting Client Review';
+            borderColor = '#90A4AE';
+            statusBg = '#ECEFF1';
+            statusTextColor = '#455A64';
+            statusHeaderText = 'Accepted';
         } else if (terminated) {
             borderColor = '#FF5252';
             statusBg = '#FFCDD2';
             statusTextColor = '#D32F2F';
             statusHeaderText = 'Contract Terminated';
         }
+
+        const displayStatus = rejectedWorker
+            ? 'Rejected'
+            : terminated
+                ? 'Contract Terminated'
+                : acceptedWorker
+                    ? 'Accepted'
+                    : status || 'Pending';
 
         // Avatar fallback URL
         const avatarUri = clientImage && clientImage.startsWith('/')
@@ -864,7 +875,7 @@ const JobConfirmationScreen = ({ navigation }) => {
                         <Text style={styles.clientName}>{clientName || 'Client Profile'}</Text>
                         <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
                             <Text style={[styles.statusText, { color: statusTextColor }]}>
-                                {status}
+                                {displayStatus}
                             </Text>
                         </View>
                     </View>

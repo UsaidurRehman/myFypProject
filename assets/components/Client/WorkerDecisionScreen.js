@@ -627,8 +627,8 @@ const WorkerDecisionScreen = ({ navigation }) => {
         }
     };
 
-    // Rule 5: User confirms and accepts worker response
-    const handleFinalizeHiring = async (hiringId, clientConfirmDecision) => {
+    // Rule 5: User confirms and finalizes accepted worker responses
+    const handleFinalizeHiring = async (hiringId) => {
         setSubmittingId(hiringId);
         try {
             const token = await AsyncStorage.getItem('userToken');
@@ -640,12 +640,12 @@ const WorkerDecisionScreen = ({ navigation }) => {
                 },
                 body: JSON.stringify({
                     HiringId: hiringId,
-                    HiringDecision: clientConfirmDecision // 'Accepted' or 'Rejected'
+                    HiringDecision: 'Accepted'
                 })
             });
 
             if (response.ok) {
-                NotificationHelper.showSuccess(`Job engagement status marked as ${clientConfirmDecision}!`);
+                NotificationHelper.showSuccess('Hiring decision finalized successfully.');
                 await fetchDecisions();
             } else {
                 NotificationHelper.showError("Failed to update final hiring state.");
@@ -744,20 +744,12 @@ const WorkerDecisionScreen = ({ navigation }) => {
                                         {submittingId === item.hiringId ? (
                                             <ActivityIndicator size="small" color="#1E64D3" />
                                         ) : (
-                                            <>
-                                                <TouchableOpacity
-                                                    style={[styles.actionBtn, styles.declineBtn]}
-                                                    onPress={() => handleFinalizeHiring(item.hiringId, 'Rejected')}
-                                                >
-                                                    <Text style={styles.declineBtnText}>Reject</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={[styles.actionBtn, styles.confirmBtn]}
-                                                    onPress={() => handleFinalizeHiring(item.hiringId, 'Accepted')}
-                                                >
-                                                    <Text style={styles.confirmBtnText}>Finalize Hire</Text>
-                                                </TouchableOpacity>
-                                            </>
+                                            <TouchableOpacity
+                                                style={[styles.actionBtn, styles.confirmBtn]}
+                                                onPress={() => handleFinalizeHiring(item.hiringId)}
+                                            >
+                                                <Text style={styles.confirmBtnText}>Finalize Hire</Text>
+                                            </TouchableOpacity>
                                         )}
                                     </View>
                                 )}

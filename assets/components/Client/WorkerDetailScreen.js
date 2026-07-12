@@ -227,13 +227,13 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                     })}
                 >
                     <Text style={styles.callBtnText}>
-                        {worker.activeInterviewStatus === "Finalized" || worker.activeInterviewStatus === "Hired" 
-                            ? "Worker Hired" 
-                            : worker.availability === "NOT AVAILABLE"
-                                ? "Worker Not Available"
+                        {['finalized', 'hired', 'accepted'].includes((worker.activeInterviewStatus || '').toString().toLowerCase())
+                            ? 'Worker Hired'
+                            : worker.availability === 'NOT AVAILABLE'
+                                ? 'Worker Not Available'
                                 : worker.hasActiveInterview 
-                                    ? "Interview Request Pending" 
-                                    : "Call For Interview"}
+                                    ? 'Interview Request Pending' 
+                                    : 'Call For Interview'}
                     </Text>
                 </TouchableOpacity>
             </View>

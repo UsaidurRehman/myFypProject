@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet, View, Text, Image, TouchableOpacity,
-  FlatList, SafeAreaView, StatusBar, ActivityIndicator, Alert
+  FlatList, SafeAreaView, StatusBar, ActivityIndicator
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,6 +12,14 @@ import { SERVER_BASE, API_DASHBOARD } from '../../config';
 const UserDashboard = ({ navigation }) => {
   const [workers, setWorkers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const sortWorkersByInterviewIdDesc = (list = []) => {
+    return [...list].sort((a, b) => {
+      const aId = Number(a.interviewId || a.id || 0);
+      const bId = Number(b.interviewId || b.id || 0);
+      return bId - aId;
+    });
+  };
 
   // States to hold user info loaded from AsyncStorage
   const [userName, setUserName] = useState("Client User");
@@ -77,31 +85,15 @@ const UserDashboard = ({ navigation }) => {
 
       if (response.ok) {
         const data = await response.json();
-        const list = data.hiredWorkers || [];
+        const list = sortWorkersByInterviewIdDesc(data.hiredWorkers || []);
 
-        const enriched = await Promise.all(list.map(async (w) => {
-          try {
-            const workerId = parseInt(w.id, 10);
-            if (!workerId) return w;
+        const activeWorkers = list.filter(w => {
+          const s = (w.status || '').toString().toLowerCase();
+          return !s.includes('terminate');
+        });
 
-            const tResp = await fetch(`${SERVER_BASE}/api/Dashboard/GetLatestTermination/${workerId}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            if (tResp.ok) {
-              const term = await tResp.json().catch(() => null);
-              if (term) {
-                return { ...w, termination: term };
-              }
-            }
-          } catch (e) {
-            // ignore
-          }
-          return w;
-        }));
-
-        setWorkers(enriched);
-        setHiredCount(data.hiredCount || 0);
+        setWorkers(list);
+        setHiredCount(activeWorkers.length);
         setPendingInterviewsCount(data.pendingInterviewsCount || 0);
       } else if (response.status === 401) {
         NotificationHelper.showError("Session Expired. Please login again.");
@@ -121,29 +113,9 @@ const UserDashboard = ({ navigation }) => {
     navigation.replace('Login');
   };
 
-  const handleDeleteWorker = (item) => {
-    const targetKey = (item.interviewId || item.id || '').toString();
-    
-    const filtered = workers.filter(w => {
-      const currentKey = (w.interviewId || w.id || '').toString();
-      return currentKey !== targetKey;
-    });
-
-    const activeCount = filtered.filter(w => {
-      const s = (w.status || '').toString().trim().toLowerCase();
-      const hasTerm = !!w.termination || !!w.terminationId || !!w.terminatedDate || !!w.isTerminated;
-      return !s.includes('terminate') && !hasTerm && !s.includes('resign');
-    }).length;
-
-    setWorkers(filtered);
-    setHiredCount(activeCount);
-  };
-
-  // Helper logic to check if a worker object qualifies as inactive/terminated
-  const checkIsTerminatedOrResigned = (item) => {
+  const isTerminatedWorker = (item) => {
     const s = (item.status || '').toString().trim().toLowerCase();
-    const hasTerm = !!item.termination || !!item.terminationId || !!item.terminatedDate || !!item.isTerminated;
-    return s.includes('terminate') || s.includes('resign') || hasTerm;
+    return s.includes('terminate');
   };
 
   const renderWorkerCard = ({ item }) => {
@@ -170,7 +142,7 @@ const UserDashboard = ({ navigation }) => {
       displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
     }
 
-    const isTerminatedOrResigned = checkIsTerminatedOrResigned(item);
+    const isTerminatedOrResigned = isTerminatedWorker(item);
 
     return (
       <TouchableOpacity
@@ -222,24 +194,7 @@ const UserDashboard = ({ navigation }) => {
             </Text>
           </View>
 
-          {isTerminatedOrResigned ? (
-            <TouchableOpacity
-              style={[styles.mainBtn, styles.redBtn]}
-              onPress={() => {
-                Alert.alert(
-                  'Delete',
-                  'Are you sure you want to remove this record from your screen? This will not delete it from the database.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'OK', onPress: () => handleDeleteWorker(item) }
-                  ],
-                  { cancelable: true }
-                );
-              }}
-            >
-              <Text style={styles.mainBtnText}>Delete</Text>
-            </TouchableOpacity>
-          ) : (
+          {normalizedKey === 'active' ? (
             <TouchableOpacity
               style={[styles.mainBtn, styles.blueBtn]}
               onPress={() => navigation.navigate('TerminateContractScreen', {
@@ -249,7 +204,7 @@ const UserDashboard = ({ navigation }) => {
             >
               <Text style={styles.mainBtnText}>Terminate</Text>
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
       </TouchableOpacity>
     );
@@ -334,7 +289,7 @@ const UserDashboard = ({ navigation }) => {
   );
 
   const renderTerminatedFooter = () => {
-    const terminatedWorkers = workers.filter(w => checkIsTerminatedOrResigned(w));
+    const terminatedWorkers = workers.filter(isTerminatedWorker);
 
     if (terminatedWorkers.length === 0) return null;
 
@@ -373,23 +328,6 @@ const UserDashboard = ({ navigation }) => {
                     {normalizedKey === 'resigned' ? 'Resigned' : 'Terminated'}
                   </Text>
                 </View>
-
-                <TouchableOpacity
-                  style={[styles.mainBtn, styles.redBtn]}
-                  onPress={() => {
-                    Alert.alert(
-                      'Delete',
-                      'Remove this terminated record from your screen? (Won\'t delete from DB)',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'OK', onPress: () => handleDeleteWorker(item) }
-                      ],
-                      { cancelable: true }
-                    );
-                  }}
-                >
-                  <Text style={styles.mainBtnText}>Delete</Text>
-                </TouchableOpacity>
               </View>
             </View>
           );
@@ -399,7 +337,7 @@ const UserDashboard = ({ navigation }) => {
   };
 
   // Filter out any terminated or resigned items from the main content collection
-  const activeWorkersList = workers.filter(w => !checkIsTerminatedOrResigned(w));
+  const activeWorkersList = workers.filter(w => !isTerminatedWorker(w));
 
   return (
     <SafeAreaView style={styles.container}>

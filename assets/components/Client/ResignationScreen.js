@@ -17,6 +17,8 @@ const ResignationScreen = ({ route, navigation }) => {
     const [remarks, setRemarks] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const isConfirmed = data?.isConfirmed;
+
     useEffect(() => {
         fetchResignationDetail();
     }, []);
@@ -83,13 +85,22 @@ const ResignationScreen = ({ route, navigation }) => {
         return (
             <View style={styles.starRow}>
                 {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                    isConfirmed ? (
                         <Icon
+                            key={star}
                             name={star <= rating ? "star" : "star-outline"}
                             size={20}
                             color={star <= rating ? "#FFD700" : "#666"}
                         />
-                    </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                            <Icon
+                                name={star <= rating ? "star" : "star-outline"}
+                                size={20}
+                                color={star <= rating ? "#FFD700" : "#666"}
+                            />
+                        </TouchableOpacity>
+                    )
                 ))}
             </View>
         );
@@ -174,26 +185,39 @@ const ResignationScreen = ({ route, navigation }) => {
                         {renderStars()}
                     </View>
                     <View style={styles.remarksInputContainer}>
-                        <TextInput
-                            style={styles.remarksInput}
-                            placeholder="Enter your remarks here"
-                            placeholderTextColor="#999"
-                            value={remarks}
-                            onChangeText={setRemarks}
-                        />
+                        {isConfirmed ? (
+                            <Text style={styles.confirmedText}>
+                                This resignation has already been confirmed and is now readonly.
+                            </Text>
+                        ) : (
+                            <TextInput
+                                style={styles.remarksInput}
+                                placeholder="Enter your remarks here"
+                                placeholderTextColor="#999"
+                                value={remarks}
+                                onChangeText={setRemarks}
+                                editable={!isConfirmed}
+                            />
+                        )}
                     </View>
                 </View>
 
                 {/* Confirm Button */}
                 <TouchableOpacity
-                    style={[styles.confirmBtn, isSubmitting && { opacity: 0.7 }]}
+                    style={[
+                        styles.confirmBtn,
+                        isConfirmed && styles.confirmBtnDisabled,
+                        isSubmitting && { opacity: 0.7 }
+                    ]}
                     onPress={handleConfirmResignation}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isConfirmed}
                 >
                     {isSubmitting ? (
                         <ActivityIndicator color="#FFF" />
                     ) : (
-                        <Text style={styles.confirmBtnText}>Confirm Resignation</Text>
+                        <Text style={styles.confirmBtnText}>
+                            {isConfirmed ? 'Resignation Confirmed' : 'Confirm Resignation'}
+                        </Text>
                     )}
                 </TouchableOpacity>
 
@@ -313,7 +337,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         elevation: 5
     },
-    confirmBtnText: { color: '#FFF', fontSize: 20, fontWeight: 'bold' }
+    confirmBtnDisabled: {
+        backgroundColor: '#B0BEC5'
+    },
+    confirmBtnText: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
+    confirmedText: { fontSize: 15, color: '#2E7D32', lineHeight: 22, marginLeft: 10 }
 });
 
 export default ResignationScreen;

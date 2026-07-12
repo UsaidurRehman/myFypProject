@@ -14,6 +14,7 @@ const API_BASE = API_DASHBOARD;
 const FindServiceScreen = ({ navigation, route }) => {
     const [search, setSearch] = useState('');
     const [categoriesList, setCategoriesList] = useState(['All']);
+    const [categoryLookup, setCategoryLookup] = useState({});
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [workers, setWorkers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +46,12 @@ const FindServiceScreen = ({ navigation, route }) => {
                 const data = await response.json();
                 const names = data.map(c => c.categoryName);
                 setCategoriesList(['All', ...names]);
+                const lookup = {};
+                data.forEach(c => {
+                    lookup[c.categoryId?.toString()] = c.categoryName;
+                    lookup[c.categoryName] = c.categoryName;
+                });
+                setCategoryLookup(lookup);
             }
         } catch (error) {
             console.error("Failed to fetch top categories:", error);
@@ -62,6 +69,12 @@ const FindServiceScreen = ({ navigation, route }) => {
         }, [route.params?.appliedFilters])
     );
 
+    const getCategoryName = (selection) => {
+        if (!selection) return '';
+        const key = selection.toString();
+        return categoryLookup[key] || key;
+    };
+
     const fetchWorkers = useCallback(async (categoryTab, searchText, currentFilters) => {
         setIsLoading(true);
         try {
@@ -77,7 +90,11 @@ const FindServiceScreen = ({ navigation, route }) => {
 
             // Gather all categories to filter by
             // Combine top tab selection with filters from filteration screen
-            const combinedCategories = [...currentFilters.categories];
+            const selectedCategoryNames = (currentFilters.categories || [])
+                .map(getCategoryName)
+                .filter(cat => cat && cat !== 'All');
+
+            const combinedCategories = [...new Set(selectedCategoryNames)];
             if (categoryTab && categoryTab !== 'All' && !combinedCategories.includes(categoryTab)) {
                 combinedCategories.push(categoryTab);
             }

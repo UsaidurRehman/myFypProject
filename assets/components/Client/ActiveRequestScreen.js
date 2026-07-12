@@ -410,6 +410,14 @@ const ActiveRequestScreen = ({ navigation }) => {
     const [activeTab, setActiveTab] = useState('All'); // 'All', 'Pending', 'Approved'
     const [interactingIds, setInteractingIds] = useState([]);
 
+    const sortRequestsByInterviewIdDesc = (list = []) => {
+        return [...list].sort((a, b) => {
+            const aId = Number(a.interviewId || a.id || 0);
+            const bId = Number(b.interviewId || b.id || 0);
+            return bId - aId;
+        });
+    };
+
     useEffect(() => {
         fetchRequests();
     }, []);
@@ -427,7 +435,7 @@ const ActiveRequestScreen = ({ navigation }) => {
 
             if (response.ok) {
                 const data = await response.json();
-                setRequests(data);
+                setRequests(sortRequestsByInterviewIdDesc(data));
             }
         } catch (error) {
             NotificationHelper.showError('Failed to load requests.');
@@ -460,10 +468,11 @@ const ActiveRequestScreen = ({ navigation }) => {
             if (response.ok) {
                 NotificationHelper.showSuccess('Interview Approved! Job Offer sent to worker.');
                 // Optimistically mark this request as processed for the client UI
-                setRequests(prev => prev.map(r => r.interviewId === requestId ? {
+                setRequests(prev => sortRequestsByInterviewIdDesc(prev.map(r => r.interviewId === requestId ? {
                     ...r,
+                    workerDecision: 'Accepted',
                     hiring: { ...(r.hiring || {}), hiringDecision: 'Accepted' }
-                } : r));
+                } : r)));
             } else {
                 const errData = await response.json().catch(() => ({}));
                 NotificationHelper.showError(errData.message || 'Failed to approve request.');
@@ -499,23 +508,26 @@ const ActiveRequestScreen = ({ navigation }) => {
         }
     };
 
-    // Filter algorithm honoring structural state hierarchies
-    // const filteredRequests = requests.filter(req => {
-    //     const matchesSearch = req.workerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    //         req.workerSkill?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    //     if (!matchesSearch) return false;
-
-    //     const isHired = req.workerDecision === 'Accepted' && req.hiring?.hiringDecision === 'Accepted';
-
-    //     if (activeTab === 'Pending') return !isHired;
-    //     if (activeTab === 'Approved') return isHired;
-    //     return true;
-    // });
     const filteredRequests = requests.filter(item => {
-    const s = (item.status || '').toLowerCase();
-    return s !== 'terminated' && s !== 'hired';
-});
+        const searchValue = searchQuery.trim().toLowerCase();
+        const matchesSearch =
+            !searchValue ||
+            item.workerName?.toLowerCase().includes(searchValue) ||
+            item.workerSkill?.toLowerCase().includes(searchValue);
+
+        if (!matchesSearch) return false;
+
+        const itemStatus = (item.status || item.workerDecision || '').toString().toLowerCase().trim();
+        const isResigned = itemStatus.includes('resign');
+        const isTerminated = itemStatus.includes('terminate');
+        const isRejected = itemStatus.includes('reject');
+        const isApproved = item.hiring?.hiringDecision === 'Accepted';
+        const isFinalRecord = isApproved || isResigned || isTerminated || isRejected;
+
+        if (activeTab === 'Pending') return !isFinalRecord;
+        if (activeTab === 'Approved') return isApproved;
+        return true;
+    });
 
     return (
         <SafeAreaView style={styles.safeContainer}>
@@ -572,24 +584,40 @@ const ActiveRequestScreen = ({ navigation }) => {
                         // Parse status machine values
                         const workerDecision = item.workerDecision;
                         const hiringDecision = item.hiring?.hiringDecision;
+                        const rawStatus = (item.status || workerDecision || '').toString().trim();
+                        const normalizedStatus = rawStatus.toLowerCase();
+                        const isResigned = normalizedStatus.includes('resign');
+                        const isTerminated = normalizedStatus.includes('terminate');
+                        const isRejected = normalizedStatus.includes('reject');
+                        const isApproved = hiringDecision === 'Accepted';
 
                         let statusText = 'Pending Response';
                         let statusColor = '#B06000';
                         let statusBg = '#FFF3CD';
                         let canApprove = false;
-                        let isHired = false;
+                        let showDelete = true;
 
-                        if (workerDecision === 'Rejected') {
-                            statusText = 'Rejected by Worker';
+                        if (isResigned) {
+                            statusText = 'Resigned';
+                            statusColor = '#6F42C1';
+                            statusBg = '#F3E5F5';
+                            showDelete = false;
+                        } else if (isTerminated) {
+                            statusText = 'Terminated';
                             statusColor = '#D32F2F';
                             statusBg = '#FFEBEE';
-                        } else if (hiringDecision === 'Accepted') {
-                            // Approved by client — read-only state
+                            showDelete = false;
+                        } else if (isRejected) {
+                            statusText = 'Rejected';
+                            statusColor = '#D32F2F';
+                            statusBg = '#FFEBEE';
+                            showDelete = false;
+                        } else if (isApproved) {
                             statusText = 'Processed';
                             statusColor = '#137333';
                             statusBg = '#E6F4EA';
-                            isHired = true; // treat as finalized for UI (no actions)
-                        } else if (workerDecision === 'Accepted') {
+                            showDelete = false;
+                        } else if (workerDecision === 'Accepted' && hiringDecision !== 'Accepted') {
                             statusText = 'Action Required';
                             statusColor = '#1E64D3';
                             statusBg = '#E3F2FD';
@@ -620,7 +648,7 @@ const ActiveRequestScreen = ({ navigation }) => {
                                         <ActivityIndicator size="small" color="#1E64D3" />
                                     ) : (
                                         <>
-                                            {canApprove && (
+                                                {canApprove && (
                                                 <TouchableOpacity
                                                     onPress={() => handleApprove(item.interviewId, item.address)}
                                                     style={[styles.actionBtnTextOnly, { marginBottom: 8 }]}
@@ -629,19 +657,18 @@ const ActiveRequestScreen = ({ navigation }) => {
                                                 </TouchableOpacity>
                                             )}
 
-                                            {isHired ? (
-                                                // Finalized/Processed: show read-only badge (no delete)
-                                                <View style={styles.lockedFeedbackBox}>
-                                                    <Icon name="check-circle" size={16} color="#137333" />
-                                                    <Text style={[styles.lockedFeedbackText, { color: '#137333' }]}>Processed</Text>
-                                                </View>
-                                            ) : (
+                                            {showDelete ? (
                                                 <TouchableOpacity
                                                     onPress={() => handleDelete(item.interviewId)}
                                                     style={styles.actionIconBtn}
                                                 >
                                                     <Icon name="delete-outline" size={20} color="#D32F2F" />
                                                 </TouchableOpacity>
+                                            ) : (
+                                                <View style={styles.lockedFeedbackBox}>
+                                                    <Icon name="check-circle" size={16} color="#137333" />
+                                                    <Text style={[styles.lockedFeedbackText, { color: '#137333' }]}>Processed</Text>
+                                                </View>
                                             )}
                                         </>
                                     )}
