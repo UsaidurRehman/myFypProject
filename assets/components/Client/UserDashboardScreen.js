@@ -69,7 +69,6 @@ const UserDashboard = ({ navigation }) => {
     setIsLoading(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
-      // Fetch hired workers and stats for this client
       const response = await fetch(`${SERVER_BASE}/api/Dashboard/GetClientDashboard`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -78,7 +77,30 @@ const UserDashboard = ({ navigation }) => {
 
       if (response.ok) {
         const data = await response.json();
-        setWorkers(data.hiredWorkers || []);
+        const list = data.hiredWorkers || [];
+
+        const enriched = await Promise.all(list.map(async (w) => {
+          try {
+            const workerId = parseInt(w.id, 10);
+            if (!workerId) return w;
+
+            const tResp = await fetch(`${SERVER_BASE}/api/Dashboard/GetLatestTermination/${workerId}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (tResp.ok) {
+              const term = await tResp.json().catch(() => null);
+              if (term) {
+                return { ...w, termination: term };
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+          return w;
+        }));
+
+        setWorkers(enriched);
         setHiredCount(data.hiredCount || 0);
         setPendingInterviewsCount(data.pendingInterviewsCount || 0);
       } else if (response.status === 401) {
@@ -99,70 +121,139 @@ const UserDashboard = ({ navigation }) => {
     navigation.replace('Login');
   };
 
-  const renderWorkerCard = ({ item }) => (
-    <TouchableOpacity 
-      style={[styles.workerCard, (item.type === 'alert' || item.status === 'Resigned') && styles.alertBorder]}
-      onPress={() => navigation.navigate('WorkerDetailScreen', { workerId: item.id })}
-      activeOpacity={0.7}
-    >
-      {(item.type === 'alert' || item.status === 'Resigned') && (
-        <View style={styles.alertBadge}>
-          <Text style={styles.alertText}>Resignation Alert</Text>
-        </View>
-      )}
+  const handleDeleteWorker = (item) => {
+    const targetKey = (item.interviewId || item.id || '').toString();
+    
+    const filtered = workers.filter(w => {
+      const currentKey = (w.interviewId || w.id || '').toString();
+      return currentKey !== targetKey;
+    });
 
-      <View style={styles.cardHeader}>
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ 
-              uri: item.picture && item.picture.startsWith('/')
-                ? `${SERVER_BASE}${item.picture}`
-                : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
-            }}
-            style={styles.workerImage}
-          />
-          <View style={styles.workerBadgeOverlay}>
-            <Icon name="account" size={12} color="#FFF" />
-          </View>
-        </View>
+    const activeCount = filtered.filter(w => {
+      const s = (w.status || '').toString().trim().toLowerCase();
+      const hasTerm = !!w.termination || !!w.terminationId || !!w.terminatedDate || !!w.isTerminated;
+      return !s.includes('terminate') && !hasTerm && !s.includes('resign');
+    }).length;
 
-        <View style={styles.workerInfo}>
-          <Text style={styles.workerName}>{item.name}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>{item.role}</Text>
-          </View>
-          <View style={styles.locationRow}>
-            <Icon name="map-marker" size={16} color="#E91E63" />
-            <Text style={styles.locationText}>{item.location}</Text>
-          </View>
-          <View style={styles.dateRow}>
-            <Icon name="calendar-clock" size={14} color="#888" />
-            <Text style={styles.dateText}>Joined on {item.date}</Text>
-          </View>
-        </View>
-      </View>
+    setWorkers(filtered);
+    setHiredCount(activeCount);
+  };
 
-      <View style={styles.actionRow}>
-        <View style={[styles.statusBadge, styles[`status_${(item.type || 'active')}`]]}>
-          <Text style={[styles.statusText, styles[`text_${(item.type || 'active')}`]]}>
-            {item.status || 'On Work'}
-          </Text>
-        </View>
+  // Helper logic to check if a worker object qualifies as inactive/terminated
+  const checkIsTerminatedOrResigned = (item) => {
+    const s = (item.status || '').toString().trim().toLowerCase();
+    const hasTerm = !!item.termination || !!item.terminationId || !!item.terminatedDate || !!item.isTerminated;
+    return s.includes('terminate') || s.includes('resign') || hasTerm;
+  };
 
-        {(item.type === 'active' || item.type === 'alert') && (
-          <TouchableOpacity 
-            style={[styles.mainBtn, styles.blueBtn]}
-            onPress={() => navigation.navigate('TerminateContractScreen', { 
-              workerId: item.id, 
-              interviewId: item.interviewId 
-            })}
-          >
-            <Text style={styles.mainBtnText}>Terminate</Text>
-          </TouchableOpacity>
+  const renderWorkerCard = ({ item }) => {
+    const rawStatus = (item.status || '').toString();
+    const statusNorm = rawStatus.trim().toLowerCase();
+
+    let normalizedKey = 'active';
+    let displayStatus = 'On Work';
+
+    if (!statusNorm || statusNorm === '' || statusNorm === 'on work' || statusNorm === 'onwork' || statusNorm === 'available') {
+      normalizedKey = 'active';
+      displayStatus = 'On Work';
+    } else if (statusNorm.includes('resign')) {
+      normalizedKey = 'resigned';
+      displayStatus = 'Resigned';
+    } else if (statusNorm.includes('terminate')) {
+      normalizedKey = 'terminated';
+      displayStatus = 'Terminated';
+    } else if (item.type === 'alert' || statusNorm === 'alert') {
+      normalizedKey = 'alert';
+      displayStatus = rawStatus || 'Alert';
+    } else {
+      normalizedKey = statusNorm.replace(/\s+/g, '_') || 'active';
+      displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
+    }
+
+    const isTerminatedOrResigned = checkIsTerminatedOrResigned(item);
+
+    return (
+      <TouchableOpacity
+        style={[styles.workerCard, (item.type === 'alert' || normalizedKey === 'resigned') && styles.alertBorder]}
+        onPress={() => navigation.navigate('WorkerDetailScreen', { workerId: item.id })}
+        activeOpacity={0.7}
+      >
+        {(item.type === 'alert' || normalizedKey === 'resigned') && (
+          <View style={styles.alertBadge}>
+            <Text style={styles.alertText}>Resignation Alert</Text>
+          </View>
         )}
-      </View>
-    </TouchableOpacity>
-  );
+
+        <View style={styles.cardHeader}>
+          <View style={styles.imageContainer}>
+            <Image
+              source={{
+                uri: item.picture && item.picture.startsWith('/')
+                  ? `${SERVER_BASE}${item.picture}`
+                  : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+              }}
+              style={styles.workerImage}
+            />
+            <View style={styles.workerBadgeOverlay}>
+              <Icon name="account" size={12} color="#FFF" />
+            </View>
+          </View>
+
+          <View style={styles.workerInfo}>
+            <Text style={styles.workerName}>{item.name}</Text>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleText}>{item.role}</Text>
+            </View>
+            <View style={styles.locationRow}>
+              <Icon name="map-marker" size={16} color="#E91E63" />
+              <Text style={styles.locationText}>{item.location}</Text>
+            </View>
+            <View style={styles.dateRow}>
+              <Icon name="calendar-clock" size={14} color="#888" />
+              <Text style={styles.dateText}>Joined on {item.date}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.actionRow}>
+          <View style={[styles.statusBadge, styles[`status_${normalizedKey}`] || styles.status_active]}>
+            <Text style={[styles.statusText, styles[`text_${normalizedKey}`] || styles.text_active]}>
+              {displayStatus}
+            </Text>
+          </View>
+
+          {isTerminatedOrResigned ? (
+            <TouchableOpacity
+              style={[styles.mainBtn, styles.redBtn]}
+              onPress={() => {
+                Alert.alert(
+                  'Delete',
+                  'Are you sure you want to remove this record from your screen? This will not delete it from the database.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'OK', onPress: () => handleDeleteWorker(item) }
+                  ],
+                  { cancelable: true }
+                );
+              }}
+            >
+              <Text style={styles.mainBtnText}>Delete</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.mainBtn, styles.blueBtn]}
+              onPress={() => navigation.navigate('TerminateContractScreen', {
+                workerId: item.id,
+                interviewId: item.interviewId
+              })}
+            >
+              <Text style={styles.mainBtnText}>Terminate</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderHeader = () => (
     <View>
@@ -215,8 +306,8 @@ const UserDashboard = ({ navigation }) => {
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('ActiveRequestScreen')} style={styles.menuBtn}><Text style={styles.menuBtnText}>Interview Requests</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('WorkerDecisionScreen')} style={styles.menuBtn}><Text style={styles.menuBtnText}>Job Requests</Text></TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.menuBtn} 
+        <TouchableOpacity
+          style={styles.menuBtn}
           onPress={() => navigation.navigate('ResignationsScreen')}
         >
           <Text style={styles.menuBtnText}>Resignations</Text>
@@ -242,6 +333,74 @@ const UserDashboard = ({ navigation }) => {
     </View>
   );
 
+  const renderTerminatedFooter = () => {
+    const terminatedWorkers = workers.filter(w => checkIsTerminatedOrResigned(w));
+
+    if (terminatedWorkers.length === 0) return null;
+
+    return (
+      <View style={styles.footerSection}>
+        <Text style={styles.sectionTitle}>Terminated Workers</Text>
+        {terminatedWorkers.map(item => {
+          const s = (item.status || '').toString().trim().toLowerCase();
+          const normalizedKey = s.includes('resign') ? 'resigned' : 'terminated';
+
+          return (
+            <View
+              key={item.interviewId || item.id}
+              style={[styles.workerCard, styles.alertBorder]}
+            >
+              <View style={styles.cardHeader}>
+                <View style={styles.imageContainer}>
+                  <Image
+                    source={{ uri: item.picture && item.picture.startsWith('/') ? `${SERVER_BASE}${item.picture}` : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }}
+                    style={styles.workerImage}
+                  />
+                </View>
+
+                <View style={styles.workerInfo}>
+                  <Text style={styles.workerName}>{item.name}</Text>
+                  <View style={styles.locationRow}>
+                    <Icon name="map-marker" size={16} color="#E91E63" />
+                    <Text style={styles.locationText}>{item.location}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.actionRow}>
+                <View style={[styles.statusBadge, styles[`status_${normalizedKey}`] || styles.status_terminated]}>
+                  <Text style={[styles.statusText, styles[`text_${normalizedKey}`] || styles.text_terminated]}>
+                    {normalizedKey === 'resigned' ? 'Resigned' : 'Terminated'}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.mainBtn, styles.redBtn]}
+                  onPress={() => {
+                    Alert.alert(
+                      'Delete',
+                      'Remove this terminated record from your screen? (Won\'t delete from DB)',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'OK', onPress: () => handleDeleteWorker(item) }
+                      ],
+                      { cancelable: true }
+                    );
+                  }}
+                >
+                  <Text style={styles.mainBtnText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
+  // Filter out any terminated or resigned items from the main content collection
+  const activeWorkersList = workers.filter(w => !checkIsTerminatedOrResigned(w));
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -251,13 +410,14 @@ const UserDashboard = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={workers}
+          data={activeWorkersList}
           renderItem={renderWorkerCard}
-          keyExtractor={item => item.interviewId || item.id}
+          keyExtractor={item => (item.interviewId || item.id || '').toString()}
           ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderTerminatedFooter}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 20, fontStyle: 'italic', color: '#999' }}>You haven't hired any workers yet.</Text>}
+          ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 20, fontStyle: 'italic', color: '#999' }}>You haven't hired any active workers yet.</Text>}
         />
       )}
     </SafeAreaView>
@@ -267,24 +427,22 @@ const UserDashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
   listContent: { padding: 20 },
-
-  // Header Styles
-  profileSection: { 
-    marginTop: 20, 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  profileSection: {
+    marginTop: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20 
+    marginBottom: 20
   },
   greetingText: { fontSize: 13, color: '#666', fontWeight: '500' },
   userName: { fontSize: 24, fontWeight: 'bold', color: '#000', marginTop: 2 },
   backBtn: { padding: 10, alignSelf: 'flex-start', marginBottom: 5 },
   headerButtons: { flexDirection: 'row', marginTop: 15 },
-  smallBlueBtn: { 
-    backgroundColor: '#1E64D3', 
-    paddingHorizontal: 16, 
-    paddingVertical: 8, 
-    borderRadius: 20, 
+  smallBlueBtn: {
+    backgroundColor: '#1E64D3',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     marginRight: 10,
     elevation: 3,
     shadowColor: '#1E64D3',
@@ -294,14 +452,13 @@ const styles = StyleSheet.create({
   },
   smallBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   profilePic: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: '#FFF', elevation: 5 },
-
-  addressCard: { 
-    backgroundColor: '#FFF', 
-    borderRadius: 25, 
-    padding: 18, 
-    elevation: 4, 
-    marginBottom: 25, 
-    borderWidth: 1, 
+  addressCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 25,
+    padding: 18,
+    elevation: 4,
+    marginBottom: 25,
+    borderWidth: 1,
     borderColor: '#F0F0F0',
     shadowColor: '#000',
     shadowOpacity: 0.1,
@@ -310,15 +467,14 @@ const styles = StyleSheet.create({
   },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   infoText: { marginLeft: 15, color: '#333', fontSize: 14, fontWeight: '500' },
-
   menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
-  menuBtn: { 
-    backgroundColor: '#1E64D3', 
-    width: '48%', 
-    height: 48, 
-    borderRadius: 25, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
+  menuBtn: {
+    backgroundColor: '#1E64D3',
+    width: '48%',
+    height: 48,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 15,
     elevation: 4,
     shadowColor: '#1E64D3',
@@ -327,18 +483,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 }
   },
   menuBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
-
   sectionTitle: { fontSize: 22, fontWeight: 'bold', marginVertical: 18, color: '#000' },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  counterBox: { 
-    backgroundColor: '#FFF', 
-    width: '48%', 
-    padding: 18, 
-    borderRadius: 25, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    elevation: 4, 
-    borderWidth: 1, 
+  counterBox: {
+    backgroundColor: '#FFF',
+    width: '48%',
+    padding: 18,
+    borderRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 4,
+    borderWidth: 1,
     borderColor: '#F0F0F0',
     shadowColor: '#000',
     shadowOpacity: 0.1,
@@ -347,16 +502,14 @@ const styles = StyleSheet.create({
   },
   counterLabel: { flex: 1, marginLeft: 12, fontSize: 13, color: '#444', fontWeight: 'bold' },
   counterNum: { fontWeight: 'bold', fontSize: 18, color: '#000' },
-
-  // Worker Card Styles
-  workerCard: { 
-    backgroundColor: '#FFF', 
-    borderRadius: 30, 
-    padding: 18, 
-    marginBottom: 20, 
-    elevation: 5, 
-    borderWidth: 1, 
-    borderColor: '#F0F0F0', 
+  workerCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 30,
+    padding: 18,
+    marginBottom: 20,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
     position: 'relative',
     shadowColor: '#000',
     shadowOpacity: 0.1,
@@ -364,14 +517,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 }
   },
   alertBorder: { borderColor: '#FFD600', borderWidth: 2.5 },
-  alertBadge: { 
-    position: 'absolute', 
-    top: -1, 
-    right: 30, 
-    backgroundColor: '#FFF9C4', 
-    paddingHorizontal: 12, 
-    paddingVertical: 5, 
-    borderBottomLeftRadius: 15, 
+  alertBadge: {
+    position: 'absolute',
+    top: -1,
+    right: 30,
+    backgroundColor: '#FFF9C4',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderBottomLeftRadius: 15,
     borderBottomRightRadius: 15,
     borderWidth: 1,
     borderColor: '#FBC02D',
@@ -382,15 +535,15 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center' },
   imageContainer: { position: 'relative' },
   workerImage: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#F8F8F8', borderWidth: 1, borderColor: '#EEE' },
-  workerBadgeOverlay: { 
-    position: 'absolute', 
-    bottom: 0, 
-    right: 0, 
-    backgroundColor: '#333', 
-    width: 20, 
-    height: 20, 
-    borderRadius: 10, 
-    justifyContent: 'center', 
+  workerBadgeOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#333',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: '#FFF'
@@ -398,11 +551,11 @@ const styles = StyleSheet.create({
   workerInfo: { marginLeft: 18, flex: 1 },
   nameRoleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   workerName: { fontSize: 18, fontWeight: 'bold', color: '#000' },
-  roleBadge: { 
-    borderWidth: 1, 
-    borderColor: '#1E64D3', 
-    borderRadius: 12, 
-    paddingHorizontal: 10, 
+  roleBadge: {
+    borderWidth: 1,
+    borderColor: '#1E64D3',
+    borderRadius: 12,
+    paddingHorizontal: 10,
     paddingVertical: 3,
     backgroundColor: '#F0F7FF'
   },
@@ -411,12 +564,11 @@ const styles = StyleSheet.create({
   locationText: { fontSize: 13, color: '#777', marginLeft: 6, fontWeight: '500' },
   dateRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   dateText: { fontSize: 12, color: '#888', marginLeft: 6 },
-
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 },
-  statusBadge: { 
-    paddingHorizontal: 18, 
-    paddingVertical: 6, 
-    borderRadius: 12, 
+  statusBadge: {
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1.5,
     minWidth: 90,
     alignItems: 'center',
@@ -426,16 +578,14 @@ const styles = StyleSheet.create({
   status_resigned: { borderColor: '#FFB300', backgroundColor: '#FFF9C4' },
   status_terminated: { borderColor: '#E53935', backgroundColor: '#FFEBEE' },
   status_alert: { borderColor: '#1E64D3', backgroundColor: '#E8F0FE' },
-
   statusText: { fontSize: 12, fontWeight: 'bold' },
   text_active: { color: '#0056B3' },
   text_resigned: { color: '#F57F17' },
   text_terminated: { color: '#D32F2F' },
   text_alert: { color: '#0056B3' },
-
-  mainBtn: { 
-    paddingHorizontal: 30, 
-    paddingVertical: 10, 
+  mainBtn: {
+    paddingHorizontal: 30,
+    paddingVertical: 10,
     borderRadius: 15,
     elevation: 3,
     shadowColor: '#000',
@@ -446,6 +596,7 @@ const styles = StyleSheet.create({
   blueBtn: { backgroundColor: '#1E64D3' },
   redBtn: { backgroundColor: '#FF1744' },
   mainBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  footerSection: { paddingTop: 10 }
 });
 
 export default UserDashboard;

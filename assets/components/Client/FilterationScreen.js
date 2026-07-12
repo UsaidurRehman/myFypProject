@@ -85,14 +85,21 @@ const FilterationScreen = ({ navigation, route }) => {
         }
     };
 
-    const toggleSkillSelection = (skillName) => {
-        if (selectedSkills.includes(skillName)) {
-            setSelectedSkills(selectedSkills.filter(s => s !== skillName));
-        } else {
-            setSelectedSkills([...selectedSkills, skillName]);
-        }
-    };
+    // const toggleSkillSelection = (skillName) => {
+    //     if (selectedSkills.includes(skillName)) {
+    //         setSelectedSkills(selectedSkills.filter(s => s !== skillName));
+    //     } else {
+    //         setSelectedSkills([...selectedSkills, skillName]);
+    //     }
+    // };
 
+    const toggleSkillSelection = (categoryId) => { // Change parameter to ID
+    if (selectedSkills.includes(categoryId)) {
+        setSelectedSkills(selectedSkills.filter(id => id !== categoryId));
+    } else {
+        setSelectedSkills([...selectedSkills, categoryId]);
+    }
+};
     const toggleSubFilter = (category, value) => {
         let current = subFilters[category] ? [...subFilters[category]] : [];
         if (current.includes(value)) {
@@ -228,7 +235,7 @@ const FilterationScreen = ({ navigation, route }) => {
                     </View>
                     <View style={styles.buttonGroup}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            {allCategories.map(cat => (
+                            {/* {allCategories.map(cat => (
                                 <TouchableOpacity
                                     key={cat.categoryId}
                                     onPress={() => toggleSkillSelection(cat.categoryName)}
@@ -236,7 +243,22 @@ const FilterationScreen = ({ navigation, route }) => {
                                 >
                                     <Text style={[styles.choiceText, selectedSkills.includes(cat.categoryName) && styles.activeText]}>{cat.categoryName}</Text>
                                 </TouchableOpacity>
-                            ))}
+                            ))} */}
+                            {allCategories.map(cat => (
+    <TouchableOpacity
+        key={cat.categoryId}
+        onPress={() => toggleSkillSelection(cat.categoryId)} // Pass ID
+        style={[
+            styles.choiceBtn, 
+            { paddingHorizontal: 20, minWidth: 100 }, 
+            selectedSkills.includes(cat.categoryId) && styles.activeBtn // Compare ID
+        ]}
+    >
+        <Text style={[styles.choiceText, selectedSkills.includes(cat.categoryId) && styles.activeText]}>
+            {cat.categoryName}
+        </Text>
+    </TouchableOpacity>
+))}
                         </ScrollView>
                     </View>
                 </View>
@@ -266,7 +288,7 @@ const FilterationScreen = ({ navigation, route }) => {
                             <Text style={styles.sectionTitle}>Sub-Category</Text>
                         </View>
 
-                        {allCategories
+                        {/* {allCategories
                             .filter(cat => selectedSkills.includes(cat.categoryName))
                             .map(cat => (
                                 <SubSection
@@ -276,7 +298,28 @@ const FilterationScreen = ({ navigation, route }) => {
                                     selected={subFilters[cat.categoryName] || []}
                                     onToggle={(val) => toggleSubFilter(cat.categoryName, val)}
                                 />
-                            ))}
+                            ))} */}
+                            {/* Sub-Category Section (Dynamic) */}
+{selectedSkills.length > 0 && (
+    <View style={styles.subCategoryCard}>
+        <View style={styles.sectionHeader}>
+            <Icon name="reorder-horizontal" size={20} color="#000" />
+            <Text style={styles.sectionTitle}>Sub-Category</Text>
+        </View>
+
+        {allCategories
+            .filter(cat => selectedSkills.includes(cat.categoryId)) // Filter by ID
+            .map(cat => (
+                <SubSection
+                    key={`sub-${cat.categoryId}`}
+                    title={cat.categoryName}
+                    options={cat.skills}
+                    selected={subFilters[cat.categoryName] || []}
+                    onToggle={(val) => toggleSubFilter(cat.categoryName, val)}
+                />
+            ))}
+    </View>
+)}
                     </View>
                 )}
             </ScrollView>

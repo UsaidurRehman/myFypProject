@@ -89,14 +89,14 @@ const LeaveJobScreen = ({ navigation }) => {
             } else {
                 let errorMsg = "Failed to submit resignation.";
                 try {
-                    const err = await response.json();
-                    errorMsg = err.message || errorMsg;
-                    if (err.errors) {
-                        console.log("Validation Errors:", err.errors);
-                    }
+                    // Read body ONCE as text, then parse in-memory to avoid "Already read" error
+                    const rawText = await response.text();
+                    console.log("Server Error Response:", rawText);
+                    const errJson = JSON.parse(rawText);
+                    errorMsg = errJson.message || errorMsg;
                 } catch (e) {
-                    const txt = await response.text();
-                    console.log("Server Error Response:", txt);
+                    // Body was empty or not JSON — use default message
+                    console.log("Could not parse error response:", e.message);
                 }
                 NotificationHelper.showError(errorMsg);
             }

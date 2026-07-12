@@ -1,10 +1,11 @@
 // OPTION 1: Published IIS Backend (Physical Device, no port needed):
-// export const SERVER_BASE = 'http://192.168.100.13/Fyp_Backend';
 export const SERVER_BASE = 'http://192.168.100.13/Fyp_Backend';
+// export const SERVER_BASE = 'http://10.220.161.23/Fyp_Backend';
 
 // OPTION 2: Visual Studio Dev — Physical Device (same Wi-Fi):
-// const IP_ADDRESS = '192.168.100.13';
+// const IP_ADDRESS = '192.168.100.77';
 // const IP_ADDRESS = '192.168.43.144';
+// const IP_ADDRESS = '10.0.2.2';
 // const PORT = '5150';
 // export const SERVER_BASE = `http://${IP_ADDRESS}:${PORT}`;
 
@@ -12,6 +13,7 @@ export const SERVER_BASE = 'http://192.168.100.13/Fyp_Backend';
 // const IP_ADDRESS = '10.0.2.2';
 // const PORT = '5139';
 // export const SERVER_BASE = `http://${IP_ADDRESS}:${PORT}`;
+// export const SERVER_BASE = `http://${IP_ADDRESS}/Fyp_Backend`;
 
 export const API_DASHBOARD = `${SERVER_BASE}/api/Dashboard`;
 export const API_AUTH = `${SERVER_BASE}/api/Auth`;

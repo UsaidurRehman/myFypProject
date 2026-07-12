@@ -8,37 +8,45 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { API_ACCOUNT } from '../../config';
 
+// Direct routing targeting AccountCreationController endpoints
 const API_BASE_URL = API_ACCOUNT;
 
-const ExpertiseSection = ({ title, icon, isActive, categoryId, onExperienceAdded }) => {
+// Maps standard string names to recognizable vector icons dynamically
+const getIconName = (name) => {
+  const norm = name?.toLowerCase().trim() || ''; // Added .trim() to wipe out accidental whitespace
+  if (norm.includes('clean')) return 'broom';
+  if (norm.includes('driv')) return 'car';       // Shortened to match "drive", "driving", "driver"
+  if (norm.includes('cook')) return 'chef-hat';
+  
+  return 'briefcase-outline';                    // A cleaner fallback than a hammer for generic items
+};
+
+const ExpertiseSection = ({ title, icon, isActive, categoryId, onExperiencesAdded }) => {
   const [date, setDate] = useState(new Date());
   const [show, setShow] = useState(false);
   const [dateText, setDateText] = useState('Select Date');
   const [workAt, setWorkAt] = useState('');
   const [description, setDescription] = useState('');
   const [subCategories, setSubCategories] = useState([]);
-  const [selectedSubSkillIds, setSelectedSubSkillIds] = useState([]); // Array for multi-selection
+  const [selectedSubSkillIds, setSelectedSubSkillIds] = useState([]); 
   const [isFetching, setIsFetching] = useState(false);
 
   useEffect(() => {
     if (isActive && categoryId) {
       setIsFetching(true);
-      // Fetching sub-skills for the selected category
       fetch(`${API_BASE_URL}/GetSkillsByCategory?categoryId=${categoryId}`)
         .then(res => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.json();
         })
         .then(data => {
-          console.log("API Response Data:", data);
           if (Array.isArray(data)) {
             const formattedData = data.map((item, index) => ({
-              id: item.id ?? item.SkillsId ?? item.skillsId ?? `skill-${index}`,
-              name: item.name ?? item.SkillName ?? item.skillName ?? "Missing Name"
+              id: item.id ?? item.SkillsId ?? item.skillsId ?? item.skills_ID ?? `skill-${index}`,
+              name: item.name ?? item.SkillName ?? item.skillName ?? item.skill_Name ?? "Missing Name"
             }));
             setSubCategories(formattedData);
           } else {
-            console.error("Expected array from API but got:", data);
             setSubCategories([]);
           }
           setIsFetching(false);
@@ -76,24 +84,22 @@ const ExpertiseSection = ({ title, icon, isActive, categoryId, onExperienceAdded
       return;
     }
 
-    // Create a unique experience entry for EVERY selected skill
-    selectedSubSkillIds.forEach(skillId => {
-      const newExp = {
-        WorkAt: workAt,
-        ExpDetail: description,
-        Duration: calculateDuration(date),
-        CategoryId: categoryId,
-        SkillsId: skillId
-      };
-      onExperienceAdded(newExp);
-    });
+    const newExperiencesBatch = selectedSubSkillIds.map(skillId => ({
+      WorkAt: workAt,
+      ExpDetail: description,
+      Duration: calculateDuration(date),
+      CategoryId: categoryId,
+      SkillsId: skillId
+    }));
 
-    // Reset fields for the next entry
+    onExperiencesAdded(newExperiencesBatch);
+
+    // Reset components back to defaults
     setWorkAt('');
     setDescription('');
     setDateText('Select Date');
     setSelectedSubSkillIds([]);
-    NotificationHelper.showSuccess(`${selectedSubSkillIds.length} Experience(s) added to your submission list.`);
+    NotificationHelper.showSuccess(`1 Experience(s) added to your submission list.`);
   };
 
   return (
@@ -112,7 +118,7 @@ const ExpertiseSection = ({ title, icon, isActive, categoryId, onExperienceAdded
         ) : (
           subCategories.map((skill) => (
             <TouchableOpacity
-              key={skill.id}
+              key={skill.id.toString()}
               style={[
                 styles.chip,
                 selectedSubSkillIds.includes(skill.id) && { backgroundColor: '#1E64D3' }
@@ -171,41 +177,70 @@ const ExpertiseSection = ({ title, icon, isActive, categoryId, onExperienceAdded
 };
 
 const AddSkillsScreen = ({ navigation, route }) => {
+  const [dbCategories, setDbCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [primary, setPrimary] = useState(null);
   const [secondary, setSecondary] = useState(null);
   const [experienceList, setExperienceList] = useState([]);
 
-  const categoryMap = { 'Cleaning': 2, 'Cooking': 1, 'Driving': 3 };
-  const reverseCategoryMap = { 2: 'Cleaning', 1: 'Cooking', 3: 'Driving' };
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/GetCategories`) 
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to load schema categories.");
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          const formatted = data.map(c => ({
+            id: c.categoryId ?? c.id ?? c.category_ID,
+            name: c.categoryName ?? c.name ?? c.category_Name
+          }));
+          setDbCategories(formatted);
+        }
+        setCategoriesLoading(false);
+      })
+      .catch(err => {
+        console.error("Categories fetch error:", err);
+        setCategoriesLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
-    if (route.params?.existingExperiences && experienceList.length === 0) {
+    if (route.params?.existingExperiences && experienceList.length === 0 && dbCategories.length > 0) {
       const exps = route.params.existingExperiences;
       setExperienceList(exps);
 
-      // Auto-set primary category based on first experience match
       if (exps.length > 0) {
         const catId = exps[0].CategoryId || exps[0].categoryId;
-        if (catId && reverseCategoryMap[catId]) {
-          setPrimary(reverseCategoryMap[catId]);
-        }
+        const matchedCat = dbCategories.find(c => c.id === catId);
+        if (matchedCat) setPrimary(matchedCat);
       }
     }
-  }, [route.params]);
+  }, [route.params, dbCategories]);
 
   const handleFinalSave = () => {
-    if (experienceList.length === 0) {
-      NotificationHelper.showError("Please add at least one experience before saving.");
-      return;
-    }
+  if (experienceList.length === 0) {
+    NotificationHelper.showError("Please add at least one experience before saving.");
+    return;
+  }
 
-    // Navigating back to Signup with ALL previous state preserved
-    navigation.navigate('Signup', {
-      ...route.params, // Spread existing params to keep name, phone, bio, etc.
-      skillsCompleted: true,
-      categoryId: categoryMap[primary], // Explicitly pass the ID
-      experiencesJson: JSON.stringify(experienceList)
-    });
+  // FORCE conversion of IDs to integers so the C# backend can deserialize them safely
+  const sanitizedExperiences = experienceList.map(exp => ({
+    ...exp,
+    CategoryId: exp.CategoryId ? parseInt(exp.CategoryId, 10) : null,
+    SkillsId: exp.SkillsId ? parseInt(exp.SkillsId, 10) : null
+  }));
+
+  navigation.navigate('Signup', {
+    ...route.params, 
+    skillsCompleted: true,
+    categoryId: primary?.id ? parseInt(primary.id, 10) : null, 
+    experiencesJson: JSON.stringify(sanitizedExperiences) // Sent cleanly as true numbers!
+  });
+};
+
+  const handleAddBatchExperiences = (newBatch) => {
+    setExperienceList(prevList => [...prevList, ...newBatch]);
   };
 
   return (
@@ -219,37 +254,56 @@ const AddSkillsScreen = ({ navigation, route }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.mainHeading}>Select Your Primary Skills</Text>
-        <View style={styles.skillRow}>
-          <SkillBox icon="broom" label="Cleaning" selected={primary === 'Cleaning'} onPress={() => setPrimary('Cleaning')} />
-          <SkillBox icon="chef-hat" label="Cooking" selected={primary === 'Cooking'} onPress={() => setPrimary('Cooking')} />
-          <SkillBox icon="car" label="Driving" selected={primary === 'Driving'} onPress={() => setPrimary('Driving')} />
-        </View>
+        {categoriesLoading ? (
+          <ActivityIndicator size="large" color="#1E64D3" style={{ marginVertical: 30 }} />
+        ) : (
+          <>
+            <Text style={styles.mainHeading}>Select Your Primary Skills</Text>
+            <View style={styles.skillRow}>
+              {dbCategories.map(cat => (
+                <SkillBox
+                  key={`primary-${cat.id}`}
+                  icon={getIconName(cat.name)}
+                  label={cat.name}
+                  selected={primary?.id === cat.id}
+                  onPress={() => setPrimary(cat)}
+                />
+              ))}
+            </View>
 
-        <Text style={styles.mainHeading}>Select Your Secondary Skills <Text style={styles.optional}>(Optional)</Text></Text>
-        <View style={styles.skillRow}>
-          <SkillBox icon="broom" label="Cleaning" selected={secondary === 'Cleaning'} disabled={primary === 'Cleaning'} onPress={() => setSecondary('Cleaning')} />
-          <SkillBox icon="chef-hat" label="Cooking" selected={secondary === 'Cooking'} disabled={primary === 'Cooking'} onPress={() => setSecondary('Cooking')} />
-          <SkillBox icon="car" label="Driving" selected={secondary === 'Driving'} disabled={primary === 'Driving'} onPress={() => setSecondary('Driving')} />
-        </View>
+            <Text style={styles.mainHeading}>Select Your Secondary Skills <Text style={styles.optional}>(Optional)</Text></Text>
+            <View style={styles.skillRow}>
+              {dbCategories.map(cat => (
+                <SkillBox
+                  key={`secondary-${cat.id}`}
+                  icon={getIconName(cat.name)}
+                  label={cat.name}
+                  selected={secondary?.id === cat.id}
+                  disabled={primary?.id === cat.id}
+                  onPress={() => setSecondary(cat)}
+                />
+              ))}
+            </View>
+          </>
+        )}
 
         {primary && (
           <ExpertiseSection
-            title={primary}
-            icon={primary === 'Cooking' ? 'chef-hat' : primary === 'Driving' ? 'car' : 'broom'}
+            title={primary.name}
+            icon={getIconName(primary.name)}
             isActive={true}
-            categoryId={categoryMap[primary]}
-            onExperienceAdded={(exp) => setExperienceList([...experienceList, exp])}
+            categoryId={primary.id}
+            onExperiencesAdded={handleAddBatchExperiences}
           />
         )}
 
         {secondary && (
           <ExpertiseSection
-            title={secondary}
-            icon={secondary === 'Cooking' ? 'chef-hat' : secondary === 'Driving' ? 'car' : 'broom'}
+            title={secondary.name}
+            icon={getIconName(secondary.name)}
             isActive={true}
-            categoryId={categoryMap[secondary]}
-            onExperienceAdded={(exp) => setExperienceList([...experienceList, exp])}
+            categoryId={secondary.id}
+            onExperiencesAdded={handleAddBatchExperiences}
           />
         )}
 
@@ -282,12 +336,12 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20 },
   mainHeading: { fontSize: 16, fontWeight: 'bold', marginVertical: 15, color: '#000' },
   optional: { fontWeight: 'normal', color: '#999', fontSize: 12 },
-  skillRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  skillBox: { width: '30%', height: 100, backgroundColor: '#FFF', borderRadius: 15, alignItems: 'center', justifyContent: 'center', elevation: 5 },
+  skillRow: { flexDirection: 'row', justifyContent: 'flex-start', flexWrap: 'wrap', marginBottom: 20 },
+  skillBox: { width: '30%', height: 100, backgroundColor: '#FFF', borderRadius: 15, alignItems: 'center', justifyContent: 'center', elevation: 5, marginRight: '3%', marginBottom: 10 },
   selectedSkillBox: { backgroundColor: '#008000' },
   skillIconCircle: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#F0EAF8', alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
   selectedIconCircle: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  skillLabel: { fontWeight: 'bold', fontSize: 13 },
+  skillLabel: { fontWeight: 'bold', fontSize: 13, textAlign: 'center' },
   selectedSkillLabel: { color: '#FFF' },
   expertiseCard: { backgroundColor: '#FFF', borderRadius: 25, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: '#EEE', elevation: 3 },
   expertiseHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },

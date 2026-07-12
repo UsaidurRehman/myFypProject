@@ -139,7 +139,7 @@ const WorkerDashboardScreen = ({ navigation }) => {
                             </TouchableOpacity>
                         </View>
                     </View>
-                    <Image
+                         <Image
                         source={{
                             uri: worker.picture && worker.picture.startsWith('/')
                                 ? `${SERVER_BASE}${worker.picture}`
