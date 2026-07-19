@@ -89,7 +89,7 @@ const UserDashboard = ({ navigation }) => {
 
         const activeWorkers = list.filter(w => {
           const s = (w.status || '').toString().toLowerCase();
-          return !s.includes('terminate');
+          return !s.includes('terminate') && !s.includes('resign');
         });
 
         setWorkers(list);
@@ -115,7 +115,7 @@ const UserDashboard = ({ navigation }) => {
 
   const isTerminatedWorker = (item) => {
     const s = (item.status || '').toString().trim().toLowerCase();
-    return s.includes('terminate');
+    return s.includes('terminate') || s.includes('resign');
   };
 
   const renderWorkerCard = ({ item }) => {
@@ -128,15 +128,15 @@ const UserDashboard = ({ navigation }) => {
     if (!statusNorm || statusNorm === '' || statusNorm === 'on work' || statusNorm === 'onwork' || statusNorm === 'available') {
       normalizedKey = 'active';
       displayStatus = 'On Work';
+    } else if (item.type === 'alert' || statusNorm === 'alert' || statusNorm.includes('resignationpending') || statusNorm.includes('pending resignation')) {
+      normalizedKey = 'alert';
+      displayStatus = 'On Work';
     } else if (statusNorm.includes('resign')) {
       normalizedKey = 'resigned';
       displayStatus = 'Resigned';
     } else if (statusNorm.includes('terminate')) {
       normalizedKey = 'terminated';
       displayStatus = 'Terminated';
-    } else if (item.type === 'alert' || statusNorm === 'alert') {
-      normalizedKey = 'alert';
-      displayStatus = rawStatus || 'Alert';
     } else {
       normalizedKey = statusNorm.replace(/\s+/g, '_') || 'active';
       displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
@@ -146,11 +146,11 @@ const UserDashboard = ({ navigation }) => {
 
     return (
       <TouchableOpacity
-        style={[styles.workerCard, (item.type === 'alert' || normalizedKey === 'resigned') && styles.alertBorder]}
+        style={[styles.workerCard, (item.type === 'alert' || normalizedKey === 'alert' || normalizedKey === 'resigned') && styles.alertBorder]}
         onPress={() => navigation.navigate('WorkerDetailScreen', { workerId: item.id })}
         activeOpacity={0.7}
       >
-        {(item.type === 'alert' || normalizedKey === 'resigned') && (
+        {(item.type === 'alert' || normalizedKey === 'alert' || normalizedKey === 'resigned') && (
           <View style={styles.alertBadge}>
             <Text style={styles.alertText}>Resignation Alert</Text>
           </View>
@@ -295,7 +295,7 @@ const UserDashboard = ({ navigation }) => {
 
     return (
       <View style={styles.footerSection}>
-        <Text style={styles.sectionTitle}>Terminated Workers</Text>
+        <Text style={styles.sectionTitle}>Ended Workers</Text>
         {terminatedWorkers.map(item => {
           const s = (item.status || '').toString().trim().toLowerCase();
           const normalizedKey = s.includes('resign') ? 'resigned' : 'terminated';
