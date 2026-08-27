@@ -110,12 +110,34 @@ const WorkerDetailScreen = ({ navigation, route }) => {
 
                     {/* Statistics Row */}
                     <View style={styles.statsContainer}>
-                        <StatItem label="EXPERIENCE" value={worker.experiences.length > 0 ? worker.experiences[0].period : "N/A"} />
+                        <StatItem label="EXPERIENCE" value={worker.experiences && worker.experiences.length > 0 ? worker.experiences[0].period : "N/A"} />
                         <View style={styles.divider} />
-                        <StatItem label="LOCATION" value={worker.location.toUpperCase()} />
+                        <StatItem label="LOCATION" value={worker.location ? worker.location.toUpperCase() : "N/A"} />
                         <View style={styles.divider} />
                         <StatItem label="SALARY" value={`Rs.${worker.salary}`} />
                     </View>
+
+                    {/* Company Certificate Button */}
+                    <TouchableOpacity
+                        style={styles.companyBadgeButton}
+                        onPress={() => navigation.navigate('WorkerCertificationDetail', { workerId: worker.id || workerId })}
+                    >
+                        <Icon name="check-circle-outline" size={18} color="#026597" style={{ marginRight: 8 }} />
+                        <Text style={styles.companyBadgeText}>
+                            Verified Trained by {worker.companyName || 'Proton Services'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Police Record Button */}
+                    <TouchableOpacity
+                        style={styles.policeAlertButton}
+                        onPress={() => navigation.navigate('workerPoliceRecord', { workerId: worker.id || workerId })}
+                    >
+                        <Icon name="alert-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                        <Text style={styles.policeAlertText}>
+                            Criminal Record Flagged (Click to View FIR Details)
+                        </Text>
+                    </TouchableOpacity>
 
                     {/* About Section */}
                     <Text style={styles.sectionTitle}>About</Text>
@@ -296,7 +318,7 @@ const styles = StyleSheet.create({
     imageContainer: { position: 'relative', width: '100%', height: 400, zIndex: 1 },
     profileImg: { width: '100%', height: '100%', resizeMode: 'cover' },
     backButton: { position: 'absolute', top: 20, left: 20, backgroundColor: 'rgba(255,255,255,0.8)', padding: 8, borderRadius: 20, zIndex: 10, elevation: 5 },
-    statusBadge: { position: 'absolute', bottom: 15, left: 15, backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWeight: 1, borderColor: '#EEE' },
+    statusBadge: { position: 'absolute', bottom: 15, left: 15, backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#EEE' },
     statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50', marginRight: 8 },
     statusText: { fontSize: 14, fontWeight: 'bold', color: '#4CAF50' },
 
@@ -312,11 +334,52 @@ const styles = StyleSheet.create({
     ratingScore: { fontSize: 22, fontWeight: 'bold', marginLeft: 5 },
     reviewCount: { fontSize: 12, color: '#999' },
 
-    statsContainer: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFF', borderRadius: 15, padding: 15, marginVertical: 20, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
+    statsContainer: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFF', borderRadius: 15, padding: 15, marginTop: 20, marginBottom: 12, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
     statBox: { flex: 1, alignItems: 'center' },
     statLabel: { fontSize: 10, color: '#999', marginBottom: 5 },
     statValue: { fontSize: 14, fontWeight: 'bold', color: '#000' },
     divider: { width: 1, height: '100%', backgroundColor: '#EEE' },
+
+    // Company Certificate Button Style
+    companyBadgeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F0F8FF',
+        borderWidth: 1,
+        borderColor: '#026597',
+        borderRadius: 25,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginBottom: 10,
+    },
+    companyBadgeText: {
+        color: '#026597',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+
+    // Police Record Alert Button Style
+    policeAlertButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#B91C1C',
+        borderRadius: 25,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginBottom: 10,
+        elevation: 2,
+        shadowColor: '#B91C1C',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+    },
+    policeAlertText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: 'bold',
+    },
 
     sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#000', marginTop: 15, marginBottom: 10 },
     aboutDescription: { fontSize: 14, color: '#666', lineHeight: 20, marginBottom: 10 },

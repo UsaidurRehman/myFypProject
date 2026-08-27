@@ -8,7 +8,6 @@ import {
   ScrollView,
   SafeAreaView,
   Image,
-  Alert,
   Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -50,11 +49,13 @@ const FormInput = ({ icon, placeholder, isPassword, secure, toggleSecure, value,
 );
 
 const SignupScreen = ({ navigation, route }) => {
+  // Top-level Unconditional Hooks
   const [role, setRole] = useState('Client');
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Client & Worker fields
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [phone, setPhone] = useState('');
@@ -69,18 +70,22 @@ const SignupScreen = ({ navigation, route }) => {
   const [skillsData, setSkillsData] = useState([]);
   const [gender, setGender] = useState('Male'); 
   const [bio, setBio] = useState('');
+  
+  // Company fields
+  const [companyName, setCompanyName] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Check if we are in Edit Mode
     if (route.params?.isEdit && route.params?.initialData && !hasAddedSkills) {
       const data = route.params.initialData;
       const targetRole = route.params.role || 'Worker';
 
       setRole(targetRole);
       setName(data.name || '');
-      setPhone(data.phone || '');
-      setAddress(data.location || '');
+      setPhone(data.phone || data.phoneNo || '');
+      setAddress(data.location || data.companyAddress || '');
       setEmail(data.email || '');
       setBio(data.bio || '');
       const dbGender = data.gender ? data.gender.toLowerCase() : 'male';
@@ -89,7 +94,6 @@ const SignupScreen = ({ navigation, route }) => {
       if (targetRole === 'Worker') {
         setAge(data.age?.toString() || '');
         setCnic(data.cnic || '');
-
         const rawSalary = data.salary ? data.salary.toString() : '0';
         setSalary(rawSalary.replace('Not Set', '0'));
 
@@ -97,6 +101,9 @@ const SignupScreen = ({ navigation, route }) => {
           setSkillsData(data.rawExperiences);
           setHasAddedSkills(true);
         }
+      } else if (targetRole === 'Company') {
+        setCompanyName(data.companyName || '');
+        setLicenseNumber(data.licenseNumber || '');
       }
 
       if (data.picture && typeof data.picture === 'string') {
@@ -107,7 +114,6 @@ const SignupScreen = ({ navigation, route }) => {
     if (route.params?.skillsCompleted) {
       setHasAddedSkills(true);
 
-      // Restore ALL state from params safely
       if (route.params.name !== undefined) setName(route.params.name);
       if (route.params.age !== undefined) setAge(route.params.age);
       if (route.params.phone !== undefined) setPhone(route.params.phone);
@@ -151,109 +157,136 @@ const SignupScreen = ({ navigation, route }) => {
     });
   };
 
+  const handleSignup = async () => {
+    const isEdit = route.params?.isEdit;
 
-const handleSignup = async () => {
-  const isEdit = route.params?.isEdit;
+    if (role === 'Company') {
+      if (!companyName || !email || !phone || !licenseNumber || !address) {
+        NotificationHelper.showError("Please fill out all company details.");
+        return;
+      }
+    } else {
+      if (!name || !phone || !address || !email) {
+        NotificationHelper.showError("Please fill out all fundamental profile details.");
+        return;
+      }
+    }
 
-  // 1. Validations
-  if (!name || !phone || !address || !email) {
-    NotificationHelper.showError("Please fill out all fundamental profile details.");
-    return;
-  }
-
-  if (!isEdit && !password) {
-    NotificationHelper.showError("Password field is required.");
-    return;
-  }
-
-  if (password !== confirmPassword) {
-    NotificationHelper.showError("Passwords do not match.");
-    return;
-  }
-
-  if (!selectedImage) {
-    NotificationHelper.showError("Please upload a profile picture.");
-    return;
-  }
-
-  if (role === 'Worker' && skillsData.length === 0) {
-    NotificationHelper.showError("Please add at least one primary skill to proceed.");
-    return;
-  }
-  
-
-  const API_BASE_URL = API_ACCOUNT;
-  let endpoint = isEdit ? (role === 'Client' ? 'UpdateClient' : 'UpdateWorker') : (role === 'Client' ? 'SignupClient' : 'SignupWorker');
-  const url = `${API_BASE_URL}/${endpoint}`;
-
-  // 2. Prepare FormData Architecture
-  const formData = new FormData();
-  if (isEdit) {
-    const initialId = route.params?.initialData?.id;
-    if (!initialId) {
-      NotificationHelper.showError("Session error: Missing profile tracking metadata.");
+    if (!isEdit && !password) {
+      NotificationHelper.showError("Password field is required.");
       return;
     }
-    formData.append(role === 'Client' ? 'ClientId' : 'WorkerId', initialId);
-  }
 
-  formData.append('Name', name);
-  formData.append('Phone', phone);
-  formData.append('Address', address);
-  formData.append('Password', password || ""); 
-  formData.append('Email', email);
-
-  if (role === 'Worker') {
-    formData.append('Cnic', cnic);
-    formData.append('Salary', salary || "0");
-    formData.append('Age', age || "0");
-    formData.append('Gender', gender);
-    formData.append('Bio', bio);
-
-    formData.append('experiencesJson', JSON.stringify(skillsData));
-  }
-
-  // 3. Handle Binary Image Attachment
-  if (selectedImage && selectedImage.uri && !selectedImage.uri.startsWith('http')) {
-    formData.append('PictureFile', {
-      uri: Platform.OS === 'android' ? selectedImage.uri : selectedImage.uri.replace('file://', ''),
-      type: selectedImage.type || 'image/jpeg',
-      name: selectedImage.fileName || 'profile.jpg',
-    });
-  }
-
-  setIsLoading(true);
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json' },
-      body: formData,
-    });
-
-    const result = await response.json();
-
-    if (response.ok) {
-      // 1. Show the success notification cleanly without passing a callback function argument
-      NotificationHelper.showSuccess(result.message || "Operation completed successfully!");
-
-      // 2. Wrap your navigation inside a setTimeout to safely transition screens after a brief delay
-      setTimeout(() => {
-        if (isEdit) {
-          navigation.navigate(role === 'Worker' ? 'WorkerDashboardScreen' : 'UserDashboardScreen');
-        } else {
-          navigation.replace('Login');
-        }
-      }, 1200); // 1.2 second delay gives the user time to read the message
-    } else {
-      NotificationHelper.showError(result.message || "Something went wrong during data validation.");
+    if (password !== confirmPassword) {
+      NotificationHelper.showError("Passwords do not match.");
+      return;
     }
-  } catch (error) {
-    console.error("Auth Action Error:", error);
-    NotificationHelper.showError("Cannot reach backend server.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+
+    if (!selectedImage && (role === 'Client' || role === 'Worker')) {
+      NotificationHelper.showError("Please upload a profile picture.");
+      return;
+    }
+
+    if (role === 'Worker' && skillsData.length === 0) {
+      NotificationHelper.showError("Please add at least one primary skill to proceed.");
+      return;
+    }
+
+    const API_BASE_URL = API_ACCOUNT;
+    let endpoint = '';
+    if (role === 'Company') {
+      endpoint = isEdit ? 'UpdateCompany' : 'SignupCompany';
+    } else if (role === 'Client') {
+      endpoint = isEdit ? 'UpdateClient' : 'SignupClient';
+    } else {
+      endpoint = isEdit ? 'UpdateWorker' : 'SignupWorker';
+    }
+
+    const url = `${API_BASE_URL}/${endpoint}`;
+    const formData = new FormData();
+
+    if (isEdit) {
+      const initialId = route.params?.initialData?.id;
+      if (!initialId) {
+        NotificationHelper.showError("Session error: Missing profile tracking metadata.");
+        return;
+      }
+      formData.append(
+        role === 'Company' ? 'CompanyID' : (role === 'Client' ? 'ClientId' : 'WorkerId'),
+        initialId
+      );
+    }
+
+    if (role === 'Company') {
+      formData.append('CompanyName', companyName);
+      formData.append('PhoneNo', phone);
+      formData.append('CompanyAddress', address);
+      formData.append('LicenseNumber', licenseNumber);
+      formData.append('Email', email);
+      formData.append('Password', password || "");
+
+      if (selectedImage && selectedImage.uri && !selectedImage.uri.startsWith('http')) {
+        formData.append('LogoFile', {
+          uri: Platform.OS === 'android' ? selectedImage.uri : selectedImage.uri.replace('file://', ''),
+          type: selectedImage.type || 'image/jpeg',
+          name: selectedImage.fileName || 'logo.jpg',
+        });
+      }
+    } else {
+      formData.append('Name', name);
+      formData.append('Phone', phone);
+      formData.append('Address', address);
+      formData.append('Password', password || ""); 
+      formData.append('Email', email);
+
+      if (role === 'Worker') {
+        formData.append('Cnic', cnic);
+        formData.append('Salary', salary || "0");
+        formData.append('Age', age || "0");
+        formData.append('Gender', gender);
+        formData.append('Bio', bio);
+        formData.append('experiencesJson', JSON.stringify(skillsData));
+      }
+
+      if (selectedImage && selectedImage.uri && !selectedImage.uri.startsWith('http')) {
+        formData.append('PictureFile', {
+          uri: Platform.OS === 'android' ? selectedImage.uri : selectedImage.uri.replace('file://', ''),
+          type: selectedImage.type || 'image/jpeg',
+          name: selectedImage.fileName || 'profile.jpg',
+        });
+      }
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        NotificationHelper.showSuccess(result.message || "Operation completed successfully!");
+        setTimeout(() => {
+          if (isEdit) {
+            navigation.navigate(role === 'Worker' ? 'WorkerDashboardScreen' : 'UserDashboardScreen');
+          } else {
+            navigation.replace('Login');
+          }
+        }, 1200);
+      } else {
+        NotificationHelper.showError(result.message || "Something went wrong during data validation.");
+      }
+    } catch (error) {
+      console.error("Auth Action Error:", error);
+      NotificationHelper.showError("Cannot reach backend server.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -264,26 +297,62 @@ const handleSignup = async () => {
         <Image source={require('../../images/logo.png')} style={styles.headerLogo} resizeMode="contain" />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {!route.params?.isEdit && (
           <>
             <Text style={styles.sectionLabel}>SELECT ROLE</Text>
-            <View style={styles.roleContainer}>
+            <View style={styles.roleGrid}>
               <TouchableOpacity style={[styles.roleButton, role === 'Client' && styles.activeRole]} onPress={() => { setRole('Client'); setStep(1); }}>
-                <Icon name="account-outline" size={24} color={role === 'Client' ? "#1E64D3" : "#000"} />
-                <Text style={styles.roleText}>Client</Text>
+                <Icon name="account-outline" size={20} color={role === 'Client' ? "#1E64D3" : "#333"} />
+                <Text style={[styles.roleText, role === 'Client' && styles.activeRoleText]}>Client</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.roleButton, role === 'Worker' && styles.activeRole]} onPress={() => setRole('Worker')}>
-                <Icon name="account-group-outline" size={24} color={role === 'Worker' ? "#1E64D3" : "#000"} />
-                <Text style={styles.roleText}>Worker</Text>
+              <TouchableOpacity style={[styles.roleButton, role === 'Worker' && styles.activeRole]} onPress={() => { setRole('Worker'); setStep(1); }}>
+                <Icon name="account-group-outline" size={20} color={role === 'Worker' ? "#1E64D3" : "#333"} />
+                <Text style={[styles.roleText, role === 'Worker' && styles.activeRoleText]}>Worker</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.roleButton, role === 'Company' && styles.activeRole]} onPress={() => { setRole('Company'); setStep(1); }}>
+                <Icon name="domain" size={20} color={role === 'Company' ? "#1E64D3" : "#333"} />
+                <Text style={[styles.roleText, role === 'Company' && styles.activeRoleText]}>Company</Text>
               </TouchableOpacity>
             </View>
           </>
         )}
 
+        {/* COMPANY SIGNUP FORM */}
+        {role === 'Company' && (
+          <>
+            <TouchableOpacity style={styles.avatarPicker} onPress={pickImage}>
+              {selectedImage ? (
+                <Image source={{ uri: selectedImage.uri }} style={styles.fullAvatar} />
+              ) : (
+                <View style={styles.imagePlaceholder}>
+                  <Icon name="domain" size={32} color="#999" />
+                  <Text style={{ fontSize: 10, color: '#999', marginTop: 4 }}>Upload Company Logo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <FormInput icon="domain" placeholder="Company Name" value={companyName} onChangeText={setCompanyName} />
+            <FormInput icon="email-outline" placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" />
+            <FormInput icon="phone-outline" placeholder="Phone no" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+            <FormInput icon="card-account-details-outline" placeholder="License/Registration Number" value={licenseNumber} onChangeText={setLicenseNumber} />
+            <FormInput icon="map-marker-outline" placeholder="Company Address" value={address} onChangeText={setAddress} />
+            
+            <FormInput icon="lock-outline" placeholder="Password" isPassword secure={!showPassword} toggleSecure={() => setShowPassword(!showPassword)} value={password} onChangeText={setPassword} />
+            <FormInput icon="lock-outline" placeholder="Confirm Password" isPassword secure={!showConfirmPassword} toggleSecure={() => setShowConfirmPassword(!showConfirmPassword)} value={confirmPassword} onChangeText={setConfirmPassword} />
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={[styles.actionButton, styles.blueBtn]} onPress={() => navigation.goBack()}>
+                <Text style={styles.buttonText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionButton, styles.blueBtn]} onPress={handleSignup}>
+                {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>{route.params?.isEdit ? 'Update' : 'Signup'}</Text>}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {/* CLIENT & WORKER STEP 1 FORM */}
         {((role === 'Client') || (role === 'Worker' && step === 1)) && (
           <>
             <TouchableOpacity style={styles.avatarPicker} onPress={pickImage}>
@@ -327,6 +396,7 @@ const handleSignup = async () => {
           </>
         )}
 
+        {/* WORKER STEP 2 FORM */}
         {role === 'Worker' && step === 2 && (
           <>
             <Text style={styles.sectionLabel}>PROFESSIONAL DESCRIPTION</Text>
@@ -401,10 +471,11 @@ const styles = StyleSheet.create({
   headerLogo: { width: 40, height: 40 },
   scrollContent: { padding: 20, paddingBottom: 100 },
   sectionLabel: { fontSize: 14, fontWeight: 'bold', marginBottom: 10 },
-  roleContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  roleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '48%', height: 60, borderRadius: 15, borderWidth: 1, borderColor: '#EEE', elevation: 3, backgroundColor: '#FFF' },
-  activeRole: { backgroundColor: '#E0DADA' },
-  roleText: { marginLeft: 10, fontWeight: 'bold' },
+  roleGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 20 },
+  roleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '31%', height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#EEE', elevation: 2, backgroundColor: '#F9F9F9', marginBottom: 10 },
+  activeRole: { backgroundColor: '#E0DADA', borderColor: '#1E64D3' },
+  roleText: { marginLeft: 8, fontWeight: '600', fontSize: 14, color: '#333' },
+  activeRoleText: { color: '#1E64D3', fontWeight: 'bold' },
   avatarPicker: { alignSelf: 'center', width: 110, height: 110, borderRadius: 55, backgroundColor: '#F5F5F5', marginBottom: 20, elevation: 4, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#EEE' },
   fullAvatar: { width: '100%', height: '100%' },
   imagePlaceholder: { alignItems: 'center' },

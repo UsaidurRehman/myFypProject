@@ -23,6 +23,12 @@ import WorkerRatingAndReviewsScreen from './assets/components/Worker/RatingAndRe
 import LeaveJobScreen from './assets/components/Worker/LeaveJobScreen.js';
 import TerminateContractScreen from './assets/components/Client/TerminateContractScreen.js';
 import WorkerTerminationScreen from './assets/components/Worker/WorkerTerminationScreen.js';
+import WorkerDirectoryScreen from './assets/components/Company/WorkerDirectoryScreen'
+import WorkerDetailsVerificationScreen from './assets/components/Company/WorkerDetailsVerificationScreen.js'
+import WorkerCertificationDetail from './assets/components/Client/WorkerCertificationDetail.js'
+import PoliceVerificationPortal from './assets/components/Police/PoliceVerificationPortal.js'
+import FileCriminalRecordScreen from './assets/components/Police/FileCriminalRecordScreen.js'
+import Map from './assets/components/Client/Map.js'
 import Toast from 'react-native-toast-message';
 
 const Stack = createStackNavigator();
@@ -55,6 +61,12 @@ export default function App() {
           <Stack.Screen name="LeaveJobScreen" component={LeaveJobScreen} />
           <Stack.Screen name="TerminateContractScreen" component={TerminateContractScreen} />
           <Stack.Screen name="WorkerTerminationScreen" component={WorkerTerminationScreen} />
+          <Stack.Screen name="WorkerDirectoryScreen" component={WorkerDirectoryScreen} />
+          <Stack.Screen name="WorkerDetailsVerificationScreen" component={WorkerDetailsVerificationScreen} />
+          <Stack.Screen name="WorkerCertificationDetail" component={WorkerCertificationDetail} />
+          <Stack.Screen name="PoliceVerificationPortal" component={PoliceVerificationPortal} />
+          <Stack.Screen name="FileCriminalRecordScreen" component={FileCriminalRecordScreen} />
+          <Stack.Screen name="MapScreen" component={Map} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />
