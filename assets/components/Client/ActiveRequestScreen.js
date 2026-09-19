@@ -1,398 +1,3 @@
-// import React, { useState, useEffect } from 'react';
-// import {
-//     StyleSheet, View, Text, ScrollView, Image, TextInput,
-//     TouchableOpacity, SafeAreaView, StatusBar, ActivityIndicator
-// } from 'react-native';
-// import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
-// import NotificationHelper from '../Notification/NotificationHelper';
-// import { SERVER_BASE } from '../../config';
-
-// const ActiveRequestScreen = ({ navigation }) => {
-//     const [requests, setRequests] = useState([]);
-//     const [loading, setLoading] = useState(true);
-//     const [searchQuery, setSearchQuery] = useState('');
-//     const [activeTab, setActiveTab] = useState('All'); // 'All', 'Pending', 'Approved'
-
-//     useEffect(() => {
-//         fetchRequests();
-//     }, []);
-
-//     const fetchRequests = async () => {
-//         try {
-//             setLoading(true);
-//             const clientId = await AsyncStorage.getItem('clientId');
-//             const token = await AsyncStorage.getItem('userToken');
-
-//             const response = await fetch(
-//                 `${SERVER_BASE}/api/Dashboard/GetActiveRequests/${clientId}`,
-//                 { headers: { Authorization: `Bearer ${token}` } }
-//             );
-
-//             if (response.ok) {
-//                 const data = await response.json();
-//                 setRequests(data);
-//             }
-//         } catch (error) {
-//             NotificationHelper.showError('Failed to load requests.');
-//         } finally {
-//             setLoading(false);
-//         }
-//     };
-
-//   const handleApproveInterview = async (interviewId) => {
-//     try {
-//         setLoading(true);
-//         const token = await AsyncStorage.getItem('userToken');
-
-//         // Find the specific request item to grab its address data
-//         const targetRequest = requests.find(r => r.interviewId === interviewId);
-//         const addressPayload = targetRequest ? targetRequest.address : "";
-
-//         const response = await fetch(
-//             `${SERVER_BASE}/api/Dashboard/CreateHiring`,
-//             {
-//                 method: 'POST',
-//                 headers: {
-//                     'Authorization': `Bearer ${token}`,
-//                     'Content-Type': 'application/json',
-//                 },
-//                 body: JSON.stringify({
-//                     InterviewId: interviewId,
-//                     WorkerDecision: 'Pending',
-//                     HiringDecision: 'Pending',
-//                     Address: addressPayload
-//                 })
-//             }
-//         );
-
-//         if (response.ok) {
-//             NotificationHelper.showSuccess('Interview approved!');
-//             await fetchRequests();
-//         } else {
-//             // Read backend error message if available
-//             const errData = await response.json().catch(() => ({}));
-//             NotificationHelper.showError(errData.message || 'Approval failed.');
-//         }
-//     } catch (error) {
-//         NotificationHelper.showError('Network error.');
-//     } finally {
-//         setLoading(false);
-//     }
-// };
-
-//     const handleDelete = async (interviewId) => {
-//         try {
-//             const token = await AsyncStorage.getItem('userToken');
-//             const response = await fetch(
-//                 `${SERVER_BASE}/api/Dashboard/DeleteInterviewRequest/${interviewId}`,
-//                 {
-//                     method: 'DELETE',
-//                     headers: { Authorization: `Bearer ${token}` },
-//                 }
-//             );
-
-//             if (response.ok) {
-//                 NotificationHelper.showSuccess('Request deleted.');
-//                 setRequests((prev) => prev.filter((r) => r.interviewId !== interviewId));
-//             } else {
-//                 NotificationHelper.showError('Failed to delete.');
-//             }
-//         } catch (error) {
-//             NotificationHelper.showError('Network error.');
-//         }
-//     };
-
-//     const renderRequestItem = (item) => {
-//         const {
-//             interviewId,
-//             workerDecision,
-//             hiring = {},
-//             workerImage,
-//             workerName,
-//             workerSkill,
-//         } = item;
-
-//         const hiringDecision = hiring?.hiringDecision;
-
-//         const imageUrl =
-//             workerImage && workerImage.startsWith('/')
-//                 ? { uri: `${SERVER_BASE}${workerImage}` }
-//                 : workerImage
-//                     ? { uri: `${SERVER_BASE}/Images/${workerImage}` }
-//                     : require('../../images/default-user.png');
-
-//         // Dynamic config block based on state flags
-//         let statusText = 'In Process';
-//         let statusColor = '#E65100';
-//         let statusBg = '#FFF3E0';
-//         let renderRightActions = null;
-
-//         if (workerDecision === 'Rejected') {
-//             statusText = 'Rejected';
-//             statusColor = '#D32F2F';
-//             statusBg = '#FFEBEE';
-//             renderRightActions = (
-//                 <View style={styles.rightActionColumn}>
-//                     <TouchableOpacity onPress={() => handleDelete(interviewId)} style={styles.actionIconBtn}>
-//                         <Icon name="delete-outline" size={24} color="#D32F2F" />
-//                     </TouchableOpacity>
-//                 </View>
-//             );
-//         } else if (workerDecision === 'Accepted' && hiringDecision === 'Accepted') {
-//             statusText = 'Hired';
-//             statusColor = '#388E3C';
-//             statusBg = '#E8F5E9';
-//             renderRightActions = (
-//                 <View style={styles.rightActionColumn}>
-//                     <TouchableOpacity onPress={() => handleDelete(interviewId)} style={styles.actionIconBtn}>
-//                         <Icon name="delete-outline" size={24} color="#D32F2F" />
-//                     </TouchableOpacity>
-//                 </View>
-//             );
-//         } else if (workerDecision === 'Accepted' && hiringDecision !== 'Accepted') {
-//             statusText = 'Action Required';
-//             statusColor = '#1E64D3';
-//             statusBg = '#E3F2FD';
-//             renderRightActions = (
-//                 <View style={styles.rightActionColumn}>
-//                     <TouchableOpacity 
-//                         onPress={() => handleApproveInterview(interviewId)} 
-//                         style={[styles.actionBtnTextOnly, { marginBottom: 8 }]}
-//                     >
-//                         <Text style={styles.approveActionText}>Approve</Text>
-//                     </TouchableOpacity>
-//                     <TouchableOpacity onPress={() => handleDelete(interviewId)}>
-//                         <Text style={styles.deleteActionText}>Delete</Text>
-//                     </TouchableOpacity>
-//                 </View>
-//             );
-//         } else {
-//             // Pending interview stage
-//             renderRightActions = (
-//                 <View style={styles.rightActionColumn}>
-//                     <TouchableOpacity onPress={() => handleDelete(interviewId)} style={styles.actionIconBtn}>
-//                         <Icon name="delete-outline" size={24} color="#D32F2F" />
-//                     </TouchableOpacity>
-//                 </View>
-//             );
-//         }
-
-//         return (
-//             <View key={interviewId} style={styles.card}>
-//                 <View style={styles.cardMainContent}>
-//                     <Image source={imageUrl} style={styles.workerAvatar} />
-//                     <View style={styles.workerInfoColumn}>
-//                         <Text style={styles.workerNameText}>{workerName}</Text>
-//                         <Text style={styles.workerSkillText}>{workerSkill || 'General Worker'}</Text>
-
-//                         <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-//                             <Text style={[styles.statusBadgeText, { color: statusColor }]}>{statusText}</Text>
-//                         </View>
-//                     </View>
-//                     {renderRightActions}
-//                 </View>
-//             </View>
-//         );
-//     };
-
-//     const filteredRequests = requests.filter((item) => {
-//         if (
-//             searchQuery &&
-//             !item.workerName.toLowerCase().includes(searchQuery.toLowerCase()) &&
-//             !item.workerSkill?.toLowerCase().includes(searchQuery.toLowerCase())
-//         ) {
-//             return false;
-//         }
-//         if (activeTab === 'Pending' && !(item.workerDecision === 'Pending' || item.hiring?.hiringDecision === 'Pending')) {
-//             return false;
-//         }
-//         if (activeTab === 'Approved' && item.hiring?.hiringDecision !== 'Accepted') {
-//             return false;
-//         }
-//         return true;
-//     });
-
-//     return (
-//         <SafeAreaView style={styles.container}>
-//             <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
-
-//             {/* Top Navigation Row Layout */}
-//             <View style={styles.header}>
-//                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-//                     <Icon name="arrow-left" size={26} color="#000" />
-//                 </TouchableOpacity>
-//                 <Text style={styles.headerTitle}>Active Requests</Text>
-//             </View>
-
-//             {/* Structured Search Text Box */}
-//             <View style={styles.searchContainer}>
-//                 <Icon name="magnify" size={22} color="#868E96" style={styles.searchIcon} />
-//                 <TextInput
-//                     style={styles.searchInput}
-//                     placeholder="Search requests by name or skill..."
-//                     placeholderTextColor="#ADB5BD"
-//                     value={searchQuery}
-//                     onChangeText={setSearchQuery}
-//                 />
-//             </View>
-
-//             {/* Filter Navigation Tabs */}
-//             <View style={styles.tabsRow}>
-//                 {['All', 'Pending', 'Approved'].map((tab) => (
-//                     <TouchableOpacity
-//                         key={tab}
-//                         onPress={() => setActiveTab(tab)}
-//                         style={[styles.tabButton, activeTab === tab && styles.tabButtonActive]}
-//                         activeOpacity={0.7}
-//                     >
-//                         <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-//                             {tab}
-//                         </Text>
-//                     </TouchableOpacity>
-//                 ))}
-//             </View>
-
-//             {loading ? (
-//                 <View style={styles.centeredLoader}>
-//                     <ActivityIndicator size="large" color="#1E64D3" />
-//                 </View>
-//             ) : (
-//                 <ScrollView
-//                     contentContainerStyle={styles.scrollContent}
-//                     showsVerticalScrollIndicator={false}
-//                 >
-//                     {filteredRequests.length > 0 ? (
-//                         filteredRequests.map((item) => renderRequestItem(item))
-//                     ) : (
-//                         <View style={styles.emptyContainer}>
-//                             <Icon name="clipboard-text-search-outline" size={48} color="#CED4DA" />
-//                             <Text style={styles.emptyText}>No requests match your criteria.</Text>
-//                         </View>
-//                     )}
-//                 </ScrollView>
-//             )}
-//         </SafeAreaView>
-//     );
-// };
-
-// const styles = StyleSheet.create({
-//     container: { flex: 1, backgroundColor: '#FFF' },
-
-//     // Header Style Setup
-//     header: { 
-//         paddingHorizontal: 16, 
-//         paddingVertical: 18, 
-//         flexDirection: 'row', 
-//         alignItems: 'center',
-//         borderBottomWidth: 1,
-//         borderBottomColor: '#F8F9FA'
-//     },
-//     backButton: { padding: 4, marginRight: 12 },
-//     headerTitle: { fontSize: 20, fontWeight: '700', color: '#1A1D20' },
-
-//     // Search Box Design System 
-//     searchContainer: {
-//         flexDirection: 'row',
-//         alignItems: 'center',
-//         backgroundColor: '#F8F9FA',
-//         marginHorizontal: 20,
-//         marginTop: 16,
-//         paddingHorizontal: 14,
-//         height: 48,
-//         borderRadius: 12,
-//         borderWidth: 1.5,
-//         borderColor: '#E9ECEF'
-//     },
-//     searchIcon: { marginRight: 10 },
-//     searchInput: { flex: 1, fontSize: 15, color: '#212529', fontWeight: '500' },
-
-//     // Categories Selection Row Filter Layout
-//     tabsRow: { 
-//         flexDirection: 'row', 
-//         paddingHorizontal: 20, 
-//         marginTop: 16, 
-//         marginBottom: 12 
-//     },
-//     tabButton: {
-//         paddingVertical: 8,
-//         paddingHorizontal: 20,
-//         borderRadius: 20,
-//         backgroundColor: '#FFF',
-//         borderWidth: 1.5,
-//         borderColor: '#E9ECEF',
-//         marginRight: 8
-//     },
-//     tabButtonActive: { backgroundColor: '#1E64D3', borderColor: '#1E64D3' },
-//     tabText: { color: '#495057', fontWeight: '600', fontSize: 14 },
-//     tabTextActive: { color: '#FFF' },
-
-//     // Dynamic Request Element Display Cards
-//     scrollContent: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24 },
-//     card: {
-//         backgroundColor: '#FFF',
-//         borderRadius: 16,
-//         padding: 16,
-//         marginBottom: 14,
-//         borderWidth: 1.5,
-//         borderColor: '#F1F3F5',
-//         shadowColor: '#000',
-//         shadowOffset: { width: 0, height: 1 },
-//         shadowOpacity: 0.04,
-//         shadowRadius: 3,
-//         elevation: 1
-//     },
-//     cardMainContent: { flexDirection: 'row', alignItems: 'center' },
-//     workerAvatar: { 
-//         width: 64, 
-//         height: 64, 
-//         borderRadius: 32, 
-//         backgroundColor: '#F1F3F5', 
-//         marginRight: 16 
-//     },
-//     workerInfoColumn: { flex: 1, justifyContent: 'center' },
-//     workerNameText: { fontSize: 16, fontWeight: '700', color: '#1A1D20', marginBottom: 2 },
-//     workerSkillText: { fontSize: 13, color: '#868E96', marginBottom: 8 },
-
-//     // Styled pill badging 
-//     statusBadge: {
-//         alignSelf: 'flex-start',
-//         paddingHorizontal: 10,
-//         paddingVertical: 3,
-//         borderRadius: 6
-//     },
-//     statusBadgeText: { fontSize: 12, fontWeight: '700' },
-
-//     // Action Layout Elements on Right 
-//     rightActionColumn: { 
-//         alignItems: 'flex-end', 
-//         justifyContent: 'center', 
-//         paddingLeft: 12 
-//     },
-//     actionIconBtn: {
-//         width: 40,
-//         height: 40,
-//         borderRadius: 20,
-//         backgroundColor: '#FFF5F5',
-//         justifyContent: 'center',
-//         alignItems: 'center'
-//     },
-//     actionBtnTextOnly: {
-//         backgroundColor: '#4CAF50',
-//         paddingHorizontal: 14,
-//         paddingVertical: 7,
-//         borderRadius: 8
-//     },
-//     approveActionText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
-//     deleteActionText: { color: '#D32F2F', fontSize: 13, fontWeight: '600' },
-
-//     // State Loading & Core Placeholders 
-//     centeredLoader: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 },
-//     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-//     emptyText: { textAlign: 'center', color: '#868E96', fontSize: 15, mt: 12, fontWeight: '500' }
-// });
-
-// export default ActiveRequestScreen;
 import React, { useState, useEffect } from 'react';
 import {
     StyleSheet, View, Text, ScrollView, Image, TextInput,
@@ -467,7 +72,6 @@ const ActiveRequestScreen = ({ navigation }) => {
 
             if (response.ok) {
                 NotificationHelper.showSuccess('Interview Approved! Job Offer sent to worker.');
-                // Optimistically mark this request as processed for the client UI
                 setRequests(prev => sortRequestsByInterviewIdDesc(prev.map(r => r.interviewId === requestId ? {
                     ...r,
                     workerDecision: 'Accepted',
@@ -531,97 +135,125 @@ const ActiveRequestScreen = ({ navigation }) => {
 
     return (
         <SafeAreaView style={styles.safeContainer}>
-            <StatusBar backgroundColor="#1E64D3" barStyle="light-content" />
+            <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
 
-            {/* Nav Header Row */}
-            <View style={styles.customHeader}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
-                    <Icon name="arrow-left" size={24} color="#FFF" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitleText}>Active Requests</Text>
-                <View style={{ width: 40 }} />
+            {/* Simple header bar */}
+            <View style={styles.headerBar}>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                        <Icon name="arrow-left" size={24} color="#1F2937" />
+                    </TouchableOpacity>
+                    <Text style={styles.screenTitle}>Interview List</Text>
+                </View>
+                <View style={styles.logoBox}>
+                    <Image
+                        source={require('../../images/logo.png')}
+                        style={styles.logoImage}
+                    />
+                </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-                {/* Search Architecture Bar */}
+
+                {/* Search Bar */}
                 <View style={styles.searchContainer}>
-                    <Icon name="magnify" size={22} color="#868E96" style={{ marginRight: 8 }} />
+                    <Icon name="magnify" size={22} color="#6B7280" style={{ marginRight: 8 }} />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Search by worker name or skill..."
-                        placeholderTextColor="#A0A5AB"
+                        placeholder="Search by name or skills"
+                        placeholderTextColor="#9CA3AF"
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                     />
                 </View>
 
-                {/* Filter Segmentation Switch Tabs */}
-                <View style={styles.tabBarWrapper}>
+                {/* Filter Tabs */}
+                <View style={styles.tabRow}>
                     {['All', 'Pending', 'Approved'].map(tab => (
                         <TouchableOpacity
                             key={tab}
                             onPress={() => setActiveTab(tab)}
-                            style={[styles.segmentTabBtn, activeTab === tab && styles.activeSegmentTabBtn]}
+                            style={[
+                                styles.tabBtn,
+                                activeTab === tab ? styles.tabBtnActive : styles.tabBtnInactive
+                            ]}
                         >
-                            <Text style={[styles.tabBtnText, activeTab === tab && styles.activeTabBtnText]}>
+                            <Text style={[
+                                styles.tabBtnText,
+                                activeTab === tab ? styles.tabBtnTextActive : styles.tabBtnTextInactive
+                            ]}>
                                 {tab}
                             </Text>
                         </TouchableOpacity>
                     ))}
                 </View>
 
+                {/* Cards */}
                 {loading ? (
                     <ActivityIndicator size="large" color="#1E64D3" style={{ marginTop: 40 }} />
                 ) : filteredRequests.length === 0 ? (
-                    <View style={styles.emptyViewBox}>
-                        <Icon name="folder-open-outline" size={60} color="#CCD1D7" />
-                        <Text style={styles.emptyViewText}>No active requests located matching parameters.</Text>
+                    <View style={styles.emptyBox}>
+                        <Icon name="folder-open-outline" size={60} color="#9CA3AF" />
+                        <Text style={styles.emptyText}>No active requests found.</Text>
                     </View>
                 ) : (
                     filteredRequests.map((item) => {
-                        const isCurrentlyProcessing = interactingIds.includes(item.interviewId);
+                        const isProcessing = interactingIds.includes(item.interviewId);
 
-                        // Parse status machine values
                         const workerDecision = item.workerDecision;
                         const hiringDecision = item.hiring?.hiringDecision;
                         const rawStatus = (item.status || workerDecision || '').toString().trim();
-                        const normalizedStatus = rawStatus.toLowerCase();
-                        const isResigned = normalizedStatus.includes('resign');
-                        const isTerminated = normalizedStatus.includes('terminate');
-                        const isRejected = normalizedStatus.includes('reject');
+                        const norm = rawStatus.toLowerCase();
+                        const isResigned = norm.includes('resign');
+                        const isTerminated = norm.includes('terminate');
+                        const isRejected = norm.includes('reject');
                         const isApproved = hiringDecision === 'Accepted';
 
-                        let statusText = 'Pending Response';
-                        let statusColor = '#B06000';
-                        let statusBg = '#FFF3CD';
+                        // Badge
+                        let badgeLabel = 'Pending';
+                        let badgeBg = '#EAB308';
+                        let badgeColor = '#fff';
+
+                        // Top-right tag
+                        let topTag = null;
+                        let topTagColor = '#1F2937';
+
+                        // Subtext
+                        let subtext = 'Worker response pending';
+                        let subtextColor = '#EF4444';
+
+                        // Actions
                         let canApprove = false;
                         let showDelete = true;
+                        let showReject = false;
 
                         if (isResigned) {
-                            statusText = 'Resigned';
-                            statusColor = '#6F42C1';
-                            statusBg = '#F3E5F5';
+                            badgeLabel = 'Resigned'; badgeBg = '#8B5CF6'; badgeColor = '#fff';
+                            subtext = 'Contract Resigned'; subtextColor = '#8B5CF6';
                             showDelete = false;
                         } else if (isTerminated) {
-                            statusText = 'Terminated';
-                            statusColor = '#D32F2F';
-                            statusBg = '#FFEBEE';
+                            badgeLabel = 'Terminated'; badgeBg = '#EF4444'; badgeColor = '#fff';
+                            subtext = 'Contract Terminated'; subtextColor = '#EF4444';
                             showDelete = false;
                         } else if (isRejected) {
-                            statusText = 'Rejected';
-                            statusColor = '#D32F2F';
-                            statusBg = '#FFEBEE';
-                            showDelete = false;
+                            badgeLabel = 'Cancel'; badgeBg = '#9CA3AF'; badgeColor = '#fff';
+                            topTag = 'Interview Rejected'; topTagColor = '#1F2937';
+                            subtext = 'Not Available right now'; subtextColor = '#EF4444';
+                            showDelete = true; canApprove = false;
                         } else if (isApproved) {
-                            statusText = 'Processed';
-                            statusColor = '#137333';
-                            statusBg = '#E6F4EA';
-                            showDelete = false;
+                            badgeLabel = 'Accepted'; badgeBg = '#22C55E'; badgeColor = '#fff';
+                            topTag = 'Interview Accepted'; topTagColor = '#1F2937';
+                            subtext = 'Verified'; subtextColor = '#22C55E';
+                            showDelete = true; showReject = true; canApprove = false;
                         } else if (workerDecision === 'Accepted' && hiringDecision !== 'Accepted') {
-                            statusText = 'Action Required';
-                            statusColor = '#1E64D3';
-                            statusBg = '#E3F2FD';
-                            canApprove = true;
+                            badgeLabel = 'Pending'; badgeBg = '#EAB308'; badgeColor = '#fff';
+                            topTag = 'Inprocess'; topTagColor = '#22C55E';
+                            subtext = 'Awaiting Approvation'; subtextColor = '#EF4444';
+                            canApprove = true; showDelete = true;
+                        } else {
+                            topTag = 'Inprocess'; topTagColor = '#22C55E';
+                            subtext = 'Worker response pending'; subtextColor = '#EF4444';
+                            showDelete = true;
                         }
 
                         const imageUrl = item.workerImage
@@ -629,49 +261,70 @@ const ActiveRequestScreen = ({ navigation }) => {
                             : require('../../images/default-user.png');
 
                         return (
-                            <View key={item.interviewId} style={styles.requestItemCard}>
-                                <Image source={imageUrl} style={styles.workerAvatarImg} />
+                            <View key={item.interviewId} style={styles.card}>
 
-                                <View style={styles.workerInfoColumn}>
-                                    <Text style={styles.workerNameText}>{item.workerName || 'Worker Profile'}</Text>
-                                    <Text style={styles.workerSkillText}>{item.workerSkill || 'General Assistant'}</Text>
-
-                                    <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-                                        <Text style={[styles.statusBadgeText, { color: statusColor }]}>
-                                            {statusText}
-                                        </Text>
+                                {/* Top-right tag */}
+                                {topTag && (
+                                    <View style={styles.topTagContainer}>
+                                        {topTagColor === '#22C55E' && (
+                                            <View style={styles.greenDot} />
+                                        )}
+                                        <Text style={[styles.topTagText, { color: topTagColor }]}>{topTag}</Text>
                                     </View>
-                                </View>
+                                )}
 
-                                <View style={styles.rightActionColumn}>
-                                    {isCurrentlyProcessing ? (
-                                        <ActivityIndicator size="small" color="#1E64D3" />
-                                    ) : (
-                                        <>
-                                                {canApprove && (
-                                                <TouchableOpacity
-                                                    onPress={() => handleApprove(item.interviewId, item.address)}
-                                                    style={[styles.actionBtnTextOnly, { marginBottom: 8 }]}
-                                                >
-                                                    <Text style={styles.approveActionText}>Approve</Text>
-                                                </TouchableOpacity>
-                                            )}
+                                <View style={styles.cardBody}>
+                                    {/* Avatar */}
+                                    <View style={styles.avatarCircle}>
+                                        <Image source={imageUrl} style={styles.avatarImg} />
+                                    </View>
 
-                                            {showDelete ? (
-                                                <TouchableOpacity
-                                                    onPress={() => handleDelete(item.interviewId)}
-                                                    style={styles.actionIconBtn}
-                                                >
-                                                    <Icon name="delete-outline" size={20} color="#D32F2F" />
-                                                </TouchableOpacity>
-                                            ) : (
-                                                <View style={styles.lockedFeedbackBox}>
-                                                    <Icon name="check-circle" size={16} color="#137333" />
-                                                    <Text style={[styles.lockedFeedbackText, { color: '#137333' }]}>Processed</Text>
-                                                </View>
-                                            )}
-                                        </>
-                                    )}
+                                    {/* Middle info */}
+                                    <View style={styles.infoCol}>
+                                        <Text style={styles.workerName} numberOfLines={1}>
+                                            {item.workerName || 'Worker Profile'}
+                                        </Text>
+                                        <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+                                            <Text style={[styles.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+                                        </View>
+                                        <Text style={styles.skillText}>{item.workerSkill || 'General'}</Text>
+                                        <Text style={[styles.subtextLabel, { color: subtextColor }]}>{subtext}</Text>
+                                    </View>
+
+                                    {/* Action buttons */}
+                                    <View style={styles.actionCol}>
+                                        {isProcessing ? (
+                                            <ActivityIndicator size="small" color="#1E64D3" />
+                                        ) : (
+                                            <>
+                                                {canApprove ? (
+                                                    <TouchableOpacity
+                                                        style={styles.approveBtn}
+                                                        onPress={() => handleApprove(item.interviewId, item.address)}
+                                                    >
+                                                        <Text style={styles.approveBtnText}>Approve</Text>
+                                                    </TouchableOpacity>
+                                                ) : showReject ? (
+                                                    <TouchableOpacity style={styles.rejectBtn}>
+                                                        <Text style={styles.rejectBtnText}>Reject</Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <View style={styles.approveBtnDisabled}>
+                                                        <Text style={styles.approveBtnDisabledText}>Approve</Text>
+                                                    </View>
+                                                )}
+
+                                                {showDelete && (
+                                                    <TouchableOpacity
+                                                        style={styles.deleteBtn}
+                                                        onPress={() => handleDelete(item.interviewId)}
+                                                    >
+                                                        <Text style={styles.deleteBtnText}>Delete</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </>
+                                        )}
+                                    </View>
                                 </View>
                             </View>
                         );
@@ -683,33 +336,281 @@ const ActiveRequestScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    safeContainer: { flex: 1, backgroundColor: '#F8F9FA' },
-    customHeader: { height: 60, backgroundColor: '#1E64D3', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, elevation: 4 },
-    headerBackBtn: { padding: 4 },
-    headerTitleText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
-    scrollBody: { padding: 16 },
-    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 16, elevation: 1 },
-    searchInput: { flex: 1, fontSize: 15, color: '#1A1D20', paddingVertical: 0 },
-    tabBarWrapper: { flexDirection: 'row', backgroundColor: '#EDF2F7', borderRadius: 10, padding: 4, marginBottom: 20 },
-    segmentTabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
-    activeSegmentTabBtn: { backgroundColor: '#FFF', elevation: 2 },
-    tabBtnText: { fontSize: 14, fontWeight: '600', color: '#718096' },
-    activeTabBtnText: { color: '#1E64D3', fontWeight: '700' },
-    emptyViewBox: { alignItems: 'center', justifyContent: 'center', marginTop: 60, paddingHorizontal: 40 },
-    emptyViewText: { textAlign: 'center', color: '#868E96', fontSize: 15, marginTop: 12, lineHeight: 22 },
-    requestItemCard: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 16, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
-    workerAvatarImg: { width: 65, height: 65, borderRadius: 32.5, marginRight: 16, backgroundColor: '#EDF2F7' },
-    workerInfoColumn: { flex: 1, justifyContent: 'center' },
-    workerNameText: { fontSize: 16, fontWeight: '700', color: '#1A1D20', marginBottom: 2 },
-    workerSkillText: { fontSize: 13, color: '#868E96', marginBottom: 8 },
-    statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 6 },
-    statusBadgeText: { fontSize: 11, fontWeight: '700' },
-    rightActionColumn: { alignItems: 'flex-end', justifyContent: 'center', paddingLeft: 12, minWidth: 85 },
-    actionIconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FFF5F5', justifyContent: 'center', alignItems: 'center' },
-    actionBtnTextOnly: { backgroundColor: '#4CAF50', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, minWidth: 78, alignItems: 'center' },
-    approveActionText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
-    lockedFeedbackBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E6F4EA', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#CEEAD6' },
-    lockedFeedbackText: { fontSize: 12, fontWeight: '600', marginLeft: 4 }
+    safeContainer: {
+        flex: 1,
+        backgroundColor: '#F3F6FC',
+    },
+
+    /* ── Decorative header area ── */
+    headerBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    backBtn: {
+        padding: 4,
+        marginRight: 8,
+    },
+    screenTitle: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: '#111827',
+        letterSpacing: -0.3,
+    },
+    logoBox: {
+        width: 110,
+        height: 90,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    logoImage: {
+        width: 110,
+        height: 90,
+        resizeMode: 'contain',
+    },
+
+    /* ── Scroll body ── */
+    scrollBody: {
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 30,
+    },
+
+    /* ── Search ── */
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 28,
+        paddingHorizontal: 16,
+        height: 50,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        marginBottom: 16,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 3,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 15,
+        color: '#111827',
+        paddingVertical: 0,
+    },
+
+    /* ── Tabs ── */
+    tabRow: {
+        flexDirection: 'row',
+        marginBottom: 18,
+        gap: 8,
+    },
+    tabBtn: {
+        paddingVertical: 10,
+        paddingHorizontal: 22,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tabBtnActive: {
+        backgroundColor: '#1E64D3',
+        elevation: 3,
+        shadowColor: '#1E64D3',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.35,
+        shadowRadius: 5,
+    },
+    tabBtnInactive: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+    },
+    tabBtnText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    tabBtnTextActive: {
+        color: '#FFFFFF',
+    },
+    tabBtnTextInactive: {
+        color: '#374151',
+    },
+
+    /* ── Empty ── */
+    emptyBox: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 60,
+        paddingHorizontal: 40,
+    },
+    emptyText: {
+        textAlign: 'center',
+        color: '#6B7280',
+        fontSize: 15,
+        marginTop: 12,
+    },
+
+    /* ── Card ── */
+    card: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        marginBottom: 14,
+        paddingHorizontal: 14,
+        paddingTop: 10,
+        paddingBottom: 14,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.07,
+        shadowRadius: 5,
+    },
+    topTagContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        marginBottom: 4,
+    },
+    greenDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#22C55E',
+        marginRight: 5,
+    },
+    topTagText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    cardBody: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+
+    /* Avatar */
+    avatarCircle: {
+        width: 68,
+        height: 68,
+        borderRadius: 34,
+        backgroundColor: '#DBEAFE',
+        borderWidth: 2,
+        borderColor: '#93C5FD',
+        overflow: 'hidden',
+        marginRight: 12,
+    },
+    avatarImg: {
+        width: 68,
+        height: 68,
+        borderRadius: 34,
+    },
+
+    /* Info column */
+    infoCol: {
+        flex: 1,
+    },
+    workerName: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 4,
+    },
+    badge: {
+        alignSelf: 'flex-start',
+        paddingHorizontal: 14,
+        paddingVertical: 3,
+        borderRadius: 14,
+        marginBottom: 5,
+    },
+    badgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    skillText: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginBottom: 3,
+    },
+    subtextLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+
+    /* Action column */
+    actionCol: {
+        width: 85,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    approveBtn: {
+        backgroundColor: '#22C55E',
+        borderRadius: 18,
+        paddingVertical: 9,
+        width: 82,
+        alignItems: 'center',
+        elevation: 2,
+    },
+    approveBtnText: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    approveBtnDisabled: {
+        backgroundColor: '#E5E7EB',
+        borderRadius: 18,
+        paddingVertical: 9,
+        width: 82,
+        alignItems: 'center',
+    },
+    approveBtnDisabledText: {
+        color: '#9CA3AF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    rejectBtn: {
+        backgroundColor: '#E5E7EB',
+        borderRadius: 18,
+        paddingVertical: 9,
+        width: 82,
+        alignItems: 'center',
+    },
+    rejectBtnText: {
+        color: '#EF4444',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    deleteBtn: {
+        backgroundColor: '#FFF',
+        borderRadius: 18,
+        paddingVertical: 8,
+        width: 82,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        elevation: 1,
+    },
+    deleteBtnText: {
+        color: '#EF4444',
+        fontSize: 13,
+        fontWeight: '700',
+    },
 });
 
 export default ActiveRequestScreen;

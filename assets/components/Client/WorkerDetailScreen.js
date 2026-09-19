@@ -1,19 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     StyleSheet, View, Text, Image, ScrollView,
-    TouchableOpacity, SafeAreaView, StatusBar, ActivityIndicator, Alert
+    TouchableOpacity, SafeAreaView, StatusBar, ActivityIndicator, Dimensions
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { API_DASHBOARD, SERVER_BASE } from '../../config';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const API_BASE = API_DASHBOARD;
 
 const WorkerDetailScreen = ({ navigation, route }) => {
     const { workerId } = route.params;
     const [worker, setWorker] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState(0);
+
+    const horizontalScrollRef = useRef(null);
+
+    // Compute dynamic tabs array
+    const tabs = worker?.isPartTimeAvailable
+        ? ['Overview', 'Experience', 'Reviews', 'Time Slots']
+        : ['Overview', 'Experience', 'Reviews'];
 
     useEffect(() => {
         fetchWorkerDetails();
@@ -23,7 +32,9 @@ const WorkerDetailScreen = ({ navigation, route }) => {
         setIsLoading(true);
         try {
             const token = await AsyncStorage.getItem('userToken');
-            const response = await fetch(`${API_BASE}/GetWorkerDetail/${workerId}`, {
+            const clientId = await AsyncStorage.getItem('clientId');
+
+            const response = await fetch(`${API_BASE}/GetWorkerDetail/${workerId}?clientIdParam=${clientId || ''}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -42,9 +53,22 @@ const WorkerDetailScreen = ({ navigation, route }) => {
         }
     };
 
+    const handleTabPress = (index) => {
+        setActiveTab(index);
+        horizontalScrollRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+    };
+
+    const handleScroll = (event) => {
+        const scrollPosition = event.nativeEvent.contentOffset.x;
+        const index = Math.round(scrollPosition / SCREEN_WIDTH);
+        if (index !== activeTab && index >= 0 && index < tabs.length) {
+            setActiveTab(index);
+        }
+    };
+
     if (isLoading) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={[styles.container, styles.center]}>
                 <ActivityIndicator size="large" color="#1E64D3" />
             </View>
         );
@@ -54,99 +78,140 @@ const WorkerDetailScreen = ({ navigation, route }) => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="light-content" transparent />
+            <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Profile Image Section */}
-                <View style={styles.imageContainer}>
+            {/* Header / Hero Section */}
+            <View style={styles.header}>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => navigation.goBack()}
+                >
+                    <Icon name="arrow-left" size={24} color="#1F2937" />
+                </TouchableOpacity>
+
+                <View style={styles.profileHeader}>
                     <Image
                         source={{
                             uri: worker.picture && worker.picture.startsWith('/')
                                 ? `${SERVER_BASE}${worker.picture}`
                                 : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
                         }}
-                        style={styles.profileImg}
+                        style={styles.avatar}
                     />
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => navigation.goBack()}
-                    >
-                        <Icon name="arrow-left" size={24} color="#000" />
-                    </TouchableOpacity>
+                    <View style={styles.profileInfo}>
+                        <Text style={styles.nameText}>{worker.name}</Text>
+                        <Text style={styles.roleTitle}>{worker.role}</Text>
 
-                    <View style={styles.statusBadge}>
-                        <View style={[
-                            styles.statusDot, 
-                            (worker.availability === "NOT AVAILABLE" || worker.availability === "Currently Booked") && { backgroundColor: '#FF0000' }
-                        ]} />
-                        <Text style={[
-                            styles.statusText, 
-                            (worker.availability === "NOT AVAILABLE" || worker.availability === "Currently Booked") && { color: '#FF0000' }
-                        ]}>
-                            {worker.availability === "Available 24/7" ? "ACTIVE" : worker.availability}
-                        </Text>
+                        <View style={styles.badgeRow}>
+                            <View style={[
+                                styles.statusBadge,
+                                (worker.availability === "NOT AVAILABLE" || worker.availability === "Currently Booked") && styles.statusBadgeUnavailable
+                            ]}>
+                                <View style={[
+                                    styles.statusDot,
+                                    (worker.availability === "NOT AVAILABLE" || worker.availability === "Currently Booked") && styles.statusDotUnavailable
+                                ]} />
+                                <Text style={[
+                                    styles.statusText,
+                                    (worker.availability === "NOT AVAILABLE" || worker.availability === "Currently Booked") && styles.statusTextUnavailable
+                                ]}>
+                                    {worker.availability === "Available 24/7" ? "AVAILABLE" : worker.availability}
+                                </Text>
+                            </View>
+
+                            {/* Conditional Part-Time Available Badge */}
+                            {worker.isPartTimeAvailable && (
+                                <View style={styles.partTimeTag}>
+                                    <Icon name="clock-outline" size={11} color="#975A16" />
+                                    <Text style={styles.partTimeTagText}>PART-TIME AVAILABLE</Text>
+                                </View>
+                            )}
+                        </View>
+                        <Text style={styles.genderTitle}>{worker.gender ? worker.gender.toUpperCase() : ''} • {worker.age} Y/O</Text>
                     </View>
                 </View>
 
-                {/* Content Section */}
-                <View style={styles.contentBody}>
-                    {/* Name and Rating */}
-                    <View style={styles.headerRow}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.nameText}>{worker.name}</Text>
-                            <View style={styles.roleRow}>
-                                <Text style={styles.roleTitle}>{worker.role}</Text>
-                                <Text style={styles.genderTitle}>{worker.gender.toUpperCase()} • {worker.age} Y/O</Text>
-                            </View>
-                        </View>
-                        <View style={styles.ratingBox}>
-                            <View style={styles.starRow}>
-                                <Icon name="star" size={20} color="#FFD700" />
-                                <Text style={styles.ratingScore}>{worker.rating}</Text>
-                            </View>
-                            <Text style={styles.reviewCount}>({worker.reviewCount} Reviews)</Text>
-                        </View>
-                    </View>
+                {/* Stat Grid */}
+                <View style={styles.statsContainer}>
+                    <StatItem
+                        flex={0.8}
+                        label="RATING"
+                        value={`★ ${worker.rating || '0.0'}`}
+                        subText={`(${worker.reviewCount || 0})`}
+                    />
+                    <View style={styles.divider} />
+                    <StatItem
+                        flex={1.8}
+                        label="LOCATION"
+                        value={worker.location ? worker.location.toUpperCase() : "N/A"}
+                    />
+                    <View style={styles.divider} />
+                    <StatItem
+                        flex={1.1}
+                        label="SALARY"
+                        value={`Rs.${worker.salary}`}
+                    />
+                </View>
 
-                    {/* Statistics Row */}
-                    <View style={styles.statsContainer}>
-                        <StatItem label="EXPERIENCE" value={worker.experiences && worker.experiences.length > 0 ? worker.experiences[0].period : "N/A"} />
-                        <View style={styles.divider} />
-                        <StatItem label="LOCATION" value={worker.location ? worker.location.toUpperCase() : "N/A"} />
-                        <View style={styles.divider} />
-                        <StatItem label="SALARY" value={`Rs.${worker.salary}`} />
-                    </View>
+                {/* Tab Controls */}
+                <View style={styles.tabContainer}>
+                    {tabs.map((tab, index) => (
+                        <TouchableOpacity
+                            key={tab}
+                            style={[styles.tabButton, activeTab === index && styles.activeTabButton]}
+                            onPress={() => handleTabPress(index)}
+                        >
+                            <Text style={[styles.tabText, activeTab === index && styles.activeTabText]}>
+                                {tab}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
 
-                    {/* Company Certificate Button */}
+            {/* Horizontal Swipeable Container for Tabs */}
+            <ScrollView
+                ref={horizontalScrollRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={handleScroll}
+                style={{ flex: 1 }}
+            >
+                {/* ── OVERVIEW TAB ── */}
+                <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <Text style={styles.sectionTitle}>Trust & Verification</Text>
+
                     <TouchableOpacity
                         style={styles.companyBadgeButton}
                         onPress={() => navigation.navigate('WorkerCertificationDetail', { workerId: worker.id || workerId })}
                     >
-                        <Icon name="check-circle-outline" size={18} color="#026597" style={{ marginRight: 8 }} />
-                        <Text style={styles.companyBadgeText}>
-                            Verified Trained by {worker.companyName || 'Proton Services'}
-                        </Text>
+                        <Icon name="shield-check" size={22} color="#026597" />
+                        <View style={styles.badgeTextContainer}>
+                            <Text style={styles.companyBadgeTitle}>Verified Training</Text>
+                            <Text style={styles.companyBadgeSubtitle}>
+                                Certified by {worker.companyName || 'Proton Services'}
+                            </Text>
+                        </View>
+                        <Icon name="chevron-right" size={20} color="#026597" />
                     </TouchableOpacity>
 
-                    {/* Police Record Button */}
                     <TouchableOpacity
                         style={styles.policeAlertButton}
                         onPress={() => navigation.navigate('workerPoliceRecord', { workerId: worker.id || workerId })}
                     >
-                        <Icon name="alert-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                        <Text style={styles.policeAlertText}>
-                            Criminal Record Flagged (Click to View FIR Details)
-                        </Text>
+                        <Icon name="shield-alert" size={22} color="#B91C1C" />
+                        <View style={styles.badgeTextContainer}>
+                            <Text style={styles.policeAlertTitle}>Criminal Background Check</Text>
+                            <Text style={styles.policeAlertSubtitle}>Click to review FIR & verification status</Text>
+                        </View>
+                        <Icon name="chevron-right" size={20} color="#B91C1C" />
                     </TouchableOpacity>
 
-                    {/* About Section */}
-                    <Text style={styles.sectionTitle}>About</Text>
-                    <Text style={styles.aboutDescription}>
-                        {worker.bio}
-                    </Text>
+                    <Text style={styles.sectionTitle}>About Worker</Text>
+                    <Text style={styles.aboutDescription}>{worker.bio || "No description provided."}</Text>
 
-                    {/* Skills Section (Primary) */}
-                    <Text style={styles.sectionTitle}>Skills</Text>
+                    <Text style={styles.sectionTitle}>Primary Skills</Text>
                     <View style={styles.chipWrapper}>
                         {worker.primarySkills && worker.primarySkills.length > 0 ? (
                             worker.primarySkills.map((skill, index) => (
@@ -159,27 +224,29 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                         )}
                     </View>
 
-                    {/* Part-Time Section (Secondary) */}
-                    <Text style={styles.sectionTitle}>Part-Time</Text>
+                    <Text style={styles.sectionTitle}>Part-Time Services</Text>
                     {worker.partTimeSkills && worker.partTimeSkills.length > 0 ? (
                         worker.partTimeSkills.map((item, index) => (
-                            <View key={index} style={{ marginBottom: 15 }}>
+                            <View key={index} style={{ marginBottom: 10 }}>
                                 <Text style={styles.subCategoryLabel}>{item.categoryName.toUpperCase()}</Text>
                                 <View style={styles.chipWrapper}>
                                     {item.skills.map((skill, sIndex) => (
-                                        <View key={sIndex} style={styles.skillChip}>
-                                            <Text style={styles.skillText}>{skill.toUpperCase()}</Text>
+                                        <View key={sIndex} style={styles.skillChipSecondary}>
+                                            <Text style={styles.skillTextSecondary}>{skill.toUpperCase()}</Text>
                                         </View>
                                     ))}
                                 </View>
                             </View>
                         ))
                     ) : (
-                        <Text style={styles.emptyText}>Not Available yet any</Text>
+                        <Text style={styles.emptyText}>No part-time skills added.</Text>
                     )}
+                    <View style={{ height: 100 }} />
+                </ScrollView>
 
-                    {/* Work Experience Timeline */}
-                    <Text style={styles.sectionTitle}>Work Experience</Text>
+                {/* ── EXPERIENCE TAB ── */}
+                <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <Text style={styles.sectionTitle}>Work History</Text>
                     {worker.experiences && worker.experiences.length > 0 ? (
                         worker.experiences.map((exp, index) => (
                             <ExperienceItem
@@ -194,18 +261,34 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                         <Text style={styles.emptyText}>No experience history available.</Text>
                     )}
 
-                    {/* Reviews Section */}
-                    <View style={styles.reviewHeader}>
-                        <Text style={styles.sectionTitle}>Recent Reviews</Text>
-                        <TouchableOpacity 
-                            onPress={() => navigation.navigate('RatingAndReviewsScreen', { 
-                                workerId: worker.id,
-                                initialRating: worker.rating,
-                                initialReviewCount: worker.reviewCount
-                            })}
-                        >
-                            <Text style={styles.viewAllText}>View all</Text>
-                        </TouchableOpacity>
+                    <Text style={styles.sectionTitle}>Booking Procedure</Text>
+                    <View style={styles.procedureCard}>
+                        <ProcedureStep step="1" text="Send an interview request with preferred timings." />
+                        <ProcedureStep step="2" text="Wait for status confirmation or callback." />
+                        <ProcedureStep step="3" text="Finalize details & start service." />
+                    </View>
+                    <View style={{ height: 100 }} />
+                </ScrollView>
+
+                {/* ── REVIEWS TAB ── */}
+                <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <Text style={styles.sectionTitle}>Client Feedback & Ratings</Text>
+
+                    <View style={styles.overallRatingCard}>
+                        <Text style={styles.bigRatingText}>{worker.rating || "0.0"}</Text>
+                        <View style={{ marginLeft: 12 }}>
+                            <View style={styles.starsRow}>
+                                {[1, 2, 3, 4, 5].map(i => (
+                                    <Icon
+                                        key={i}
+                                        name={i <= Math.round(worker.rating || 0) ? "star" : "star-outline"}
+                                        size={18}
+                                        color={i <= Math.round(worker.rating || 0) ? "#FFD700" : "#CBD5E1"}
+                                    />
+                                ))}
+                            </View>
+                            <Text style={styles.totalReviewsSubText}>Based on {worker.reviewCount || 0} reviews</Text>
+                        </View>
                     </View>
 
                     {worker.reviews && worker.reviews.length > 0 ? (
@@ -216,31 +299,59 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                                 rating={rev.rating}
                                 text={rev.comment}
                                 date={rev.date}
+                                onNamePress={() => {
+                                    if (rev.clientId) {
+                                        navigation.navigate('ClientProfileScreen', {
+                                            clientId: rev.clientId,
+                                            id: rev.clientId
+                                        });
+                                    } else {
+                                        console.warn('Client ID is missing for this review.');
+                                    }
+                                }}
                             />
                         ))
                     ) : (
-                        <Text style={styles.emptyText}>No reviews yet.</Text>
+                        <View style={styles.emptyReviewBox}>
+                            <Icon name="message-outline" size={40} color="#94A3B8" />
+                            <Text style={styles.emptyText}>No reviews submitted yet.</Text>
+                        </View>
                     )}
-
-                    {/* Booking Procedure (Static) */}
-                    <Text style={styles.sectionTitle}>Booking Procedure</Text>
-                    <View style={styles.procedureList}>
-                        <ProcedureStep text="Send a booking request with your preferred date." />
-                        <ProcedureStep text="Wait for the worker to accept (usually within 30m)." />
-                        <ProcedureStep text="Confirm the location and start the service." />
-                    </View>
-
-                    {/* Padding for bottom button */}
                     <View style={{ height: 100 }} />
-                </View>
+                </ScrollView>
+
+                {/* ── TIME SLOTS TAB (RENDERED CONDITIONALLY) ── */}
+                {worker.isPartTimeAvailable && (
+                    <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                        <Text style={styles.sectionTitle}>Part-Time Available Slots</Text>
+                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
+                            This worker is within your radius ({worker.distanceKm} km away).
+                        </Text>
+
+                        {worker.timeSlots && worker.timeSlots.length > 0 ? (
+                            worker.timeSlots.map((slot) => (
+                                <View key={slot.id} style={styles.slotCard}>
+                                    <Icon name="clock-time-four-outline" size={20} color="#3182CE" />
+                                    <Text style={styles.slotText}>{slot.startTime} - {slot.endTime}</Text>
+                                </View>
+                            ))
+                        ) : (
+                            <View style={styles.emptyReviewBox}>
+                                <Icon name="clock-alert-outline" size={36} color="#94A3B8" />
+                                <Text style={styles.emptyText}>No active time slots defined for this worker.</Text>
+                            </View>
+                        )}
+                        <View style={{ height: 100 }} />
+                    </ScrollView>
+                )}
             </ScrollView>
 
-            {/* Sticky Bottom Button */}
+            {/* Bottom Sticky Action Footer */}
             <View style={styles.footer}>
                 <TouchableOpacity
                     style={[
-                        styles.callBtn, 
-                        (worker.hasActiveInterview || worker.availability === "NOT AVAILABLE") && { backgroundColor: '#B0BEC5' }
+                        styles.callBtn,
+                        (worker.hasActiveInterview || worker.availability === "NOT AVAILABLE") && styles.disabledBtn
                     ]}
                     disabled={worker.hasActiveInterview || worker.availability === "NOT AVAILABLE"}
                     onPress={() => navigation.navigate('InterviewSelectionScreen', {
@@ -253,8 +364,8 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                             ? 'Worker Hired'
                             : worker.availability === 'NOT AVAILABLE'
                                 ? 'Worker Not Available'
-                                : worker.hasActiveInterview 
-                                    ? 'Interview Request Pending' 
+                                : worker.hasActiveInterview
+                                    ? 'Interview Request Pending'
                                     : 'Call For Interview'}
                     </Text>
                 </TouchableOpacity>
@@ -263,11 +374,12 @@ const WorkerDetailScreen = ({ navigation, route }) => {
     );
 };
 
-// Sub-components for cleaner code
-const StatItem = ({ label, value }) => (
-    <View style={styles.statBox}>
+// Sub-components
+const StatItem = ({ label, value, subText, flex = 1 }) => (
+    <View style={[styles.statBox, { flex }]}>
         <Text style={styles.statLabel}>{label}</Text>
         <Text style={styles.statValue}>{value}</Text>
+        {subText ? <Text style={styles.statSubText}>{subText}</Text> : null}
     </View>
 );
 
@@ -283,23 +395,25 @@ const ExperienceItem = ({ title, period, bullets, isActive }) => (
                 <Text style={styles.periodText}>{period}</Text>
             </View>
             {bullets.map((b, i) => (
-                <Text key={i} style={styles.bulletText}>• {b}</Text>
+                <Text key={i} style={styles.bulletText}>{b}</Text>
             ))}
         </View>
     </View>
 );
 
-const ReviewCard = ({ name, rating, date, text }) => (
+const ReviewCard = ({ name, rating, date, text, onNamePress }) => (
     <View style={styles.reviewCard}>
         <View style={styles.rowBetween}>
-            <Text style={styles.reviewName}>{name}</Text>
-            <View style={styles.stars}>
+            <TouchableOpacity onPress={onNamePress}>
+                <Text style={[styles.reviewName, { textDecorationLine: 'underline' }]}>{name}</Text>
+            </TouchableOpacity>
+            <View style={styles.starsRow}>
                 {[1, 2, 3, 4, 5].map(i => (
-                    <Icon 
-                        key={i} 
-                        name={i <= rating ? "star" : "star-outline"} 
-                        size={14} 
-                        color={i <= rating ? "#FFD700" : "#CCC"} 
+                    <Icon
+                        key={i}
+                        name={i <= rating ? "star" : "star-outline"}
+                        size={14}
+                        color={i <= rating ? "#FFD700" : "#CCC"}
                     />
                 ))}
             </View>
@@ -309,113 +423,157 @@ const ReviewCard = ({ name, rating, date, text }) => (
     </View>
 );
 
-const ProcedureStep = ({ text }) => (
-    <Text style={styles.procedureText}>• {text}</Text>
+const ProcedureStep = ({ step, text }) => (
+    <View style={styles.procedureStepRow}>
+        <View style={styles.stepNumberBadge}><Text style={styles.stepNumberText}>{step}</Text></View>
+        <Text style={styles.procedureText}>{text}</Text>
+    </View>
 );
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFF' },
-    imageContainer: { position: 'relative', width: '100%', height: 400, zIndex: 1 },
-    profileImg: { width: '100%', height: '100%', resizeMode: 'cover' },
-    backButton: { position: 'absolute', top: 20, left: 20, backgroundColor: 'rgba(255,255,255,0.8)', padding: 8, borderRadius: 20, zIndex: 10, elevation: 5 },
-    statusBadge: { position: 'absolute', bottom: 15, left: 15, backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#EEE' },
-    statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50', marginRight: 8 },
-    statusText: { fontSize: 14, fontWeight: 'bold', color: '#4CAF50' },
+    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    center: { justifyContent: 'center', alignItems: 'center' },
 
-    contentBody: { paddingHorizontal: 20, marginTop: 20 },
-    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-    nameText: { fontSize: 26, fontWeight: 'bold', color: '#000' },
-    roleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-    roleTitle: { fontSize: 18, color: '#1E64D3', fontWeight: 'bold', marginRight: 15 },
-    genderTitle: { fontSize: 18, color: '#4CAF50', fontWeight: 'bold' },
-    availableText: { fontSize: 12, color: '#4CAF50', fontWeight: 'bold', marginTop: 4 },
-    ratingBox: { alignItems: 'flex-end' },
-    starRow: { flexDirection: 'row', alignItems: 'center' },
-    ratingScore: { fontSize: 22, fontWeight: 'bold', marginLeft: 5 },
-    reviewCount: { fontSize: 12, color: '#999' },
+    header: { backgroundColor: '#FFF', paddingHorizontal: 16, paddingTop: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+    backButton: { padding: 8, alignSelf: 'flex-start', marginBottom: 8 },
 
-    statsContainer: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFF', borderRadius: 15, padding: 15, marginTop: 20, marginBottom: 12, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
-    statBox: { flex: 1, alignItems: 'center' },
-    statLabel: { fontSize: 10, color: '#999', marginBottom: 5 },
-    statValue: { fontSize: 14, fontWeight: 'bold', color: '#000' },
-    divider: { width: 1, height: '100%', backgroundColor: '#EEE' },
+    profileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+    avatar: { width: 70, height: 70, borderRadius: 35, marginRight: 14 },
+    profileInfo: { flex: 1 },
+    nameText: { fontSize: 20, fontWeight: '700', color: '#0F172A' },
+    roleTitle: { fontSize: 14, color: '#1E64D3', fontWeight: '600', marginBottom: 4 },
+    badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+    genderTitle: { fontSize: 12, color: '#64748B', fontWeight: '600', marginTop: 4 },
 
-    // Company Certificate Button Style
-    companyBadgeButton: {
+    statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
+    statusBadgeUnavailable: { backgroundColor: '#FEE2E2' },
+    statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#16A34A', marginRight: 4 },
+    statusDotUnavailable: { backgroundColor: '#DC2626' },
+    statusText: { fontSize: 11, fontWeight: '700', color: '#15803D' },
+    statusTextUnavailable: { color: '#B91C1C' },
+
+    partTimeTag: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#F0F8FF',
-        borderWidth: 1,
-        borderColor: '#026597',
-        borderRadius: 25,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        marginBottom: 10,
+        backgroundColor: '#FEFCBF',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+        gap: 3
     },
-    companyBadgeText: {
-        color: '#026597',
-        fontSize: 13,
+    partTimeTagText: { fontSize: 10, fontWeight: '800', color: '#975A16' },
+
+    statsContainer: {
+        flexDirection: 'row',
+        justify: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#F1F5F9',
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 4,
+        marginBottom: 16
+    },
+    statBox: {
+        alignItems: 'center',
+        justify: 'center',
+        paddingHorizontal: 4
+    },
+    statLabel: {
+        fontSize: 9,
+        color: '#64748B',
         fontWeight: '700',
+        marginBottom: 4
+    },
+    statValue: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#0F172A',
+        textAlign: 'center',
+        lineHeight: 15
+    },
+    statSubText: {
+        fontSize: 10,
+        fontWeight: '400',
+        color: '#64748B',
+        marginTop: 2
+    },
+    divider: {
+        width: 1,
+        height: '70%',
+        backgroundColor: '#CBD5E1'
     },
 
-    // Police Record Alert Button Style
-    policeAlertButton: {
+    tabContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+    tabButton: { flex: 1, paddingVertical: 12, alignItems: 'center' },
+    activeTabButton: { borderBottomWidth: 2, borderBottomColor: '#1E64D3' },
+    tabText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
+    activeTabText: { color: '#1E64D3', fontWeight: 'bold' },
+
+    scrollContent: { padding: 16 },
+
+    sectionTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A', marginTop: 12, marginBottom: 8 },
+    aboutDescription: { fontSize: 13, color: '#475569', lineHeight: 20 },
+
+    companyBadgeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD', borderRadius: 12, padding: 12, marginBottom: 8 },
+    policeAlertButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 12, padding: 12, marginBottom: 12 },
+    badgeTextContainer: { flex: 1, marginLeft: 10 },
+    companyBadgeTitle: { color: '#0369A1', fontSize: 13, fontWeight: '700' },
+    companyBadgeSubtitle: { color: '#0284C7', fontSize: 11 },
+    policeAlertTitle: { color: '#991B1B', fontSize: 13, fontWeight: '700' },
+    policeAlertSubtitle: { color: '#B91C1C', fontSize: 11 },
+
+    chipWrapper: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
+    skillChip: { backgroundColor: '#1E64D3', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 6, marginBottom: 6 },
+    skillText: { fontSize: 11, fontWeight: '700', color: '#FFF' },
+    skillChipSecondary: { backgroundColor: '#E2E8F0', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, marginRight: 6, marginBottom: 6 },
+    skillTextSecondary: { fontSize: 11, fontWeight: '600', color: '#334155' },
+    subCategoryLabel: { fontSize: 12, fontWeight: '700', color: '#1E64D3', marginBottom: 4 },
+    emptyText: { fontSize: 12, color: '#94A3B8', fontStyle: 'italic', marginVertical: 8 },
+
+    expContainer: { flexDirection: 'row', marginBottom: 12 },
+    timelineCol: { alignItems: 'center', marginRight: 10 },
+    dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#CBD5E1' },
+    activeDot: { backgroundColor: '#1E64D3' },
+    line: { flex: 1, width: 2, backgroundColor: '#E2E8F0' },
+    expContent: { flex: 1, backgroundColor: '#FFF', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+    rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    expTitle: { fontWeight: '700', fontSize: 13, color: '#0F172A' },
+    periodText: { fontSize: 10, color: '#64748B' },
+    bulletText: { fontSize: 11, color: '#475569', marginTop: 4 },
+
+    procedureCard: { backgroundColor: '#FFF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+    procedureStepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+    stepNumberBadge: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+    stepNumberText: { fontSize: 10, fontWeight: '700', color: '#4338CA' },
+    procedureText: { fontSize: 12, color: '#334155', flex: 1 },
+
+    overallRatingCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 },
+    bigRatingText: { fontSize: 32, fontWeight: '800', color: '#0F172A' },
+    starsRow: { flexDirection: 'row' },
+    totalReviewsSubText: { fontSize: 11, color: '#64748B', marginTop: 2 },
+    reviewCard: { backgroundColor: '#FFF', borderRadius: 8, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+    reviewName: { fontWeight: '700', fontSize: 12, color: '#0F172A' },
+    reviewDuration: { fontSize: 10, color: '#94A3B8', marginVertical: 2 },
+    reviewText: { fontSize: 12, color: '#334155', fontStyle: 'italic' },
+    emptyReviewBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 20 },
+
+    slotCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#B91C1C',
-        borderRadius: 25,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        marginBottom: 10,
-        elevation: 2,
-        shadowColor: '#B91C1C',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+        backgroundColor: '#EBF8FF',
+        padding: 14,
+        borderRadius: 10,
+        marginBottom: 8,
+        gap: 10,
+        borderWidth: 1,
+        borderColor: '#BEE3F8'
     },
-    policeAlertText: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: 'bold',
-    },
+    slotText: { color: '#2B6CB0', fontWeight: '700', fontSize: 14 },
 
-    sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#000', marginTop: 15, marginBottom: 10 },
-    aboutDescription: { fontSize: 14, color: '#666', lineHeight: 20, marginBottom: 10 },
-
-    chipWrapper: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 15 },
-    skillChip: { backgroundColor: '#E0E0E0', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10, marginBottom: 10 },
-    skillText: { fontSize: 12, fontWeight: '900', color: '#333' },
-
-    subCategoryLabel: { fontSize: 14, fontWeight: 'bold', color: '#1E64D3', marginBottom: 8, marginTop: 5 },
-    emptyText: { fontSize: 13, color: '#999', marginBottom: 10, fontStyle: 'italic' },
-
-    expContainer: { flexDirection: 'row', minHeight: 80 },
-    timelineCol: { alignItems: 'center', marginRight: 10 },
-    dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#DDD' },
-    activeDot: { backgroundColor: '#1E64D3' },
-    line: { flex: 1, width: 2, backgroundColor: '#EEE' },
-    expContent: { flex: 1, paddingBottom: 20 },
-    rowBetween: { flexDirection: 'row', justifyContent: 'space-between' },
-    expTitle: { fontWeight: 'bold', fontSize: 14 },
-    periodText: { fontSize: 10, color: '#999' },
-    bulletText: { fontSize: 12, color: '#888', fontStyle: 'italic', marginTop: 4 },
-
-    reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    viewAllText: { color: '#1E64D3', fontWeight: 'bold' },
-    reviewCard: { backgroundColor: '#FFF', borderRadius: 15, padding: 15, marginBottom: 15, borderWidth: 1, borderColor: '#EEE' },
-    reviewName: { fontWeight: 'bold', fontSize: 14 },
-    stars: { flexDirection: 'row' },
-    reviewDuration: { fontSize: 12, color: '#666', marginVertical: 5 },
-    reviewText: { fontSize: 13, color: '#444', fontStyle: 'italic' },
-
-    procedureList: { paddingLeft: 10 },
-    procedureText: { fontSize: 13, color: '#666', marginBottom: 8 },
-
-    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: 'rgba(255,255,255,0.9)' },
-    callBtn: { backgroundColor: '#1E64D3', height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', elevation: 5 },
-    callBtnText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' }
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E2E8F0' },
+    callBtn: { backgroundColor: '#1E64D3', height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+    disabledBtn: { backgroundColor: '#94A3B8' },
+    callBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' }
 });
 
 export default WorkerDetailScreen;

@@ -20,8 +20,10 @@ import NotificationHelper from '../Notification/NotificationHelper';
 const { width, height } = Dimensions.get('window');
 
 // Build the full-page Leaflet HTML with OSM tiles
-const getLeafletHTML = (lat, lng, workers) => {
+const getLeafletHTML = (lat, lng, workers, role) => {
     const workersJson = JSON.stringify(workers || []);
+    const markerTitle = role === 'Worker' ? 'Your Service Location' : 'Your Location';
+    const markerPopup = role === 'Worker' ? 'Your Service Location<br><small>Drag to adjust</small>' : 'Your Location<br><small>Drag to adjust</small>';
 
     return `
 <!DOCTYPE html>
@@ -48,37 +50,37 @@ const getLeafletHTML = (lat, lng, workers) => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Client marker (blue, movable)
-    var clientIcon = L.divIcon({
+    // Primary User marker (blue, movable)
+    var userIcon = L.divIcon({
       html: '<div style="background:#1E64D3;width:18px;height:18px;border-radius:50%;border:3px solid #FFF;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',
       iconSize: [18, 18],
       iconAnchor: [9, 9],
       className: ''
     });
 
-    var clientMarker = L.marker([${lat}, ${lng}], {
-      icon: clientIcon,
+    var userMarker = L.marker([${lat}, ${lng}], {
+      icon: userIcon,
       draggable: true,
-      title: 'Your Location'
-    }).addTo(map).bindPopup('Your Location<br><small>Drag to adjust</small>');
+      title: '${markerTitle}'
+    }).addTo(map).bindPopup('${markerPopup}');
 
     // Notify RN whenever marker moves
     function sendPosition(lat, lng) {
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'position', lat: lat, lng: lng }));
     }
 
-    clientMarker.on('dragend', function(e) {
+    userMarker.on('dragend', function(e) {
       var pos = e.target.getLatLng();
       sendPosition(pos.lat, pos.lng);
     });
 
-    // Tap on map moves the client marker
+    // Tap on map moves the marker
     map.on('click', function(e) {
-      clientMarker.setLatLng(e.latlng);
+      userMarker.setLatLng(e.latlng);
       sendPosition(e.latlng.lat, e.latlng.lng);
     });
 
-    // Worker markers (orange)
+    // Worker markers (orange) - shown if array populated
     var workers = ${workersJson};
     var workerIcon = L.divIcon({
       html: '<div style="background:#FF6B35;width:16px;height:16px;border-radius:50%;border:2px solid #FFF;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>',
@@ -103,10 +105,10 @@ const getLeafletHTML = (lat, lng, workers) => {
 };
 
 const MapScreen = ({ navigation, route }) => {
-    const { latitude, longitude, workers = [], requireLocationSave } = route.params || {};
+    const { latitude, longitude, workers = [], requireLocationSave, userRole: paramUserRole, workerId: paramWorkerId } = route.params || {};
 
     const webViewRef = useRef(null);
-    const [selectedWorker, setSelectedWorker] = useState(null);
+    const [userRole, setUserRole] = useState(paramUserRole || 'Client');
     const [clientPosition, setClientPosition] = useState(
         (latitude && longitude && !isNaN(parseFloat(latitude)))
             ? { latitude: parseFloat(latitude), longitude: parseFloat(longitude) }
@@ -117,29 +119,37 @@ const MapScreen = ({ navigation, route }) => {
     const [mapHtml, setMapHtml] = useState(null);
 
     useEffect(() => {
-        if (clientPosition) {
-            // Already have coords — build map immediately
-            setMapHtml(getLeafletHTML(clientPosition.latitude, clientPosition.longitude, workers));
-            setIsLoadingLocation(false);
-        } else {
-            // Try to get device GPS
-            Geolocation.getCurrentPosition(
-                (pos) => {
-                    const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-                    setClientPosition(coords);
-                    setMapHtml(getLeafletHTML(coords.latitude, coords.longitude, workers));
-                    setIsLoadingLocation(false);
-                },
-                () => {
-                    // GPS failed — fallback to Islamabad
-                    const fallback = { latitude: 33.6844, longitude: 73.0479 };
-                    setClientPosition(fallback);
-                    setMapHtml(getLeafletHTML(fallback.latitude, fallback.longitude, workers));
-                    setIsLoadingLocation(false);
-                },
-                { enableHighAccuracy: false, timeout: 20000, maximumAge: 10000 }
-            );
-        }
+        const initializeMap = async () => {
+            // Determine active user role from params or storage
+            let activeRole = paramUserRole;
+            if (!activeRole) {
+                activeRole = (await AsyncStorage.getItem('userRole')) || 'Client';
+            }
+            setUserRole(activeRole);
+
+            if (clientPosition) {
+                setMapHtml(getLeafletHTML(clientPosition.latitude, clientPosition.longitude, workers, activeRole));
+                setIsLoadingLocation(false);
+            } else {
+                Geolocation.getCurrentPosition(
+                    (pos) => {
+                        const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                        setClientPosition(coords);
+                        setMapHtml(getLeafletHTML(coords.latitude, coords.longitude, workers, activeRole));
+                        setIsLoadingLocation(false);
+                    },
+                    () => {
+                        const fallback = { latitude: 33.6844, longitude: 73.0479 };
+                        setClientPosition(fallback);
+                        setMapHtml(getLeafletHTML(fallback.latitude, fallback.longitude, workers, activeRole));
+                        setIsLoadingLocation(false);
+                    },
+                    { enableHighAccuracy: false, timeout: 20000, maximumAge: 10000 }
+                );
+            }
+        };
+
+        initializeMap();
     }, []);
 
     // Receive messages from the Leaflet WebView
@@ -157,53 +167,66 @@ const MapScreen = ({ navigation, route }) => {
     const saveLocation = async () => {
         if (!clientPosition) return;
         setIsSaving(true);
+
         try {
             const token = await AsyncStorage.getItem('userToken');
-            const clientIdStr = await AsyncStorage.getItem('clientId');
-            if (clientIdStr && token) {
-                const response = await fetch(`${API_DASHBOARD}/update-location`, {
-                    method: 'POST',
+            if (!token) {
+                NotificationHelper.showError('Session expired. Please login again.');
+                setIsSaving(false);
+                return;
+            }
+
+            if (userRole === 'Worker') {
+                const storedWorkerId = await AsyncStorage.getItem('workerId');
+                const targetWorkerId = paramWorkerId || storedWorkerId;
+
+                if (!targetWorkerId) {
+                    NotificationHelper.showError('Worker ID missing. Please log in again.');
+                    setIsSaving(false);
+                    return;
+                }
+                const endpoint = `${API_DASHBOARD}/UpdateWorkerLocation`;
+
+                const payload = {
+                    workerId: parseInt(targetWorkerId, 10),
+                    latitude: parseFloat(clientPosition.latitude),
+                    longitude: parseFloat(clientPosition.longitude)
+                };
+
+                console.log("Sending Location Payload:", payload, "to Endpoint:", endpoint);
+
+                // MUST be PUT method to match [HttpPut("UpdateWorkerLocation")]
+                const response = await fetch(endpoint, {
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({
-                        ClientId: parseInt(clientIdStr, 10),
-                        Latitude: clientPosition.latitude,
-                        Longitude: clientPosition.longitude
-                    })
+                    body: JSON.stringify(payload)
                 });
+
                 if (response.ok) {
-                    await AsyncStorage.setItem('clientLatitude', clientPosition.latitude.toString());
-                    await AsyncStorage.setItem('clientLongitude', clientPosition.longitude.toString());
-                    NotificationHelper.showSuccess('Location saved successfully!');
+                    await AsyncStorage.setItem('workerLatitude', clientPosition.latitude.toString());
+                    await AsyncStorage.setItem('workerLongitude', clientPosition.longitude.toString());
+                    NotificationHelper.showSuccess('Worker location saved successfully!');
+
                     if (requireLocationSave) {
-                        navigation.replace('FindServiceScreen');
+                        navigation.replace('WorkerDashboardScreen');
+                    } else {
+                        navigation.goBack();
                     }
                 } else {
-                    NotificationHelper.showError('Failed to save location on server.');
+                    const errText = await response.text();
+                    console.error(`Update Location Failed [${response.status}]:`, errText);
+                    NotificationHelper.showError(`Failed (${response.status}): ${errText || 'Server error'}`);
                 }
-            } else {
-                NotificationHelper.showError('Session expired. Please login again.');
             }
         } catch (error) {
             console.error('saveLocation error:', error);
-            NotificationHelper.showError('Network error while saving.');
+            NotificationHelper.showError('Network error while saving location.');
         } finally {
             setIsSaving(false);
         }
-    };
-
-    const extractCity = (address) => {
-        if (!address || address === 'N/A') return 'N/A';
-        const parts = address.split(',');
-        return parts.length > 1 ? parts[parts.length - 1].trim() : address.trim();
-    };
-
-    const getWorkerImageUri = (picture) => {
-        if (!picture) return 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-        if (picture.startsWith('http')) return picture;
-        return `${SERVER_BASE}${picture.startsWith('/') ? '' : '/'}${picture}`;
     };
 
     if (isLoadingLocation || !mapHtml) {
@@ -244,12 +267,16 @@ const MapScreen = ({ navigation, route }) => {
                     <Icon name="arrow-left" size={24} color="#1A1C1E" />
                 </TouchableOpacity>
                 <View style={styles.headerTitleContainer}>
-                    <Text style={styles.headerTitle}>Nearby Workers Map</Text>
-                    <Text style={styles.headerSubtitle}>{workers.length} workers nearby</Text>
+                    <Text style={styles.headerTitle}>
+                        Set Your Work Location
+                    </Text>
+                    <Text style={styles.headerSubtitle}>
+                        {userRole === 'Worker' ? 'Pin your service location' : 'let the worker find you'}
+                    </Text>
                 </View>
             </View>
 
-            {/* Save Location Button */}
+            {/* Save Location Button Area */}
             {clientPosition && (
                 <View style={styles.saveBtnContainer}>
                     <View style={styles.coordsChip}>
@@ -296,7 +323,7 @@ const styles = StyleSheet.create({
     // Floating header
     header: {
         position: 'absolute',
-        top: 10,
+        top: 20,
         left: 16,
         right: 16,
         zIndex: 10,

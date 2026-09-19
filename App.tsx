@@ -28,9 +28,9 @@ import WorkerDetailsVerificationScreen from './assets/components/Company/WorkerD
 import WorkerCertificationDetail from './assets/components/Client/WorkerCertificationDetail.js'
 import PoliceVerificationPortal from './assets/components/Police/PoliceVerificationPortal.js'
 import FileCriminalRecordScreen from './assets/components/Police/FileCriminalRecordScreen.js'
-import Map from './assets/components/Client/Map.js'
+import Map from './assets/components/Map/Map.js'
 import Toast from 'react-native-toast-message';
-
+import ClientProfileScreen from './assets/components/Client/ClientProfileScreen.js'
 const Stack = createStackNavigator();
 export default function App() {
   return (
@@ -67,6 +67,7 @@ export default function App() {
           <Stack.Screen name="PoliceVerificationPortal" component={PoliceVerificationPortal} />
           <Stack.Screen name="FileCriminalRecordScreen" component={FileCriminalRecordScreen} />
           <Stack.Screen name="MapScreen" component={Map} />
+          <Stack.Screen name="ClientProfileScreen" component={ClientProfileScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />

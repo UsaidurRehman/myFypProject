@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     StyleSheet, View, Text, Image, TouchableOpacity,
-    SafeAreaView, ScrollView, StatusBar, ActivityIndicator
+    SafeAreaView, ScrollView, StatusBar, ActivityIndicator, TextInput, Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,6 +10,9 @@ import { SERVER_BASE } from '../../config';
 const WorkerTerminationScreen = ({ navigation }) => {
     const [termination, setTermination] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [rating, setRating] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
+    const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
     useEffect(() => {
         fetchTerminationStatus();
@@ -32,6 +35,39 @@ const WorkerTerminationScreen = ({ navigation }) => {
             console.error("Error fetching termination status:", error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleSubmitReview = async () => {
+        if (rating === 0) {
+            Alert.alert("Rating Required", "Please provide a star rating for the client.");
+            return;
+        }
+        
+        try {
+            const token = await AsyncStorage.getItem('userToken');
+            const response = await fetch(`${SERVER_BASE}/api/Dashboard/SubmitWorkerReviewToClient`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    InterviewId: termination?.interviewId,
+                    Rating: rating,
+                    Comment: reviewComment
+                })
+            });
+
+            if (response.ok) {
+                Alert.alert("Success", "Your review has been submitted successfully!");
+                setReviewSubmitted(true);
+            } else {
+                Alert.alert("Error", "Failed to submit review.");
+            }
+        } catch (e) {
+            console.error(e);
+            Alert.alert("Error", "Network connection failed.");
         }
     };
 
@@ -133,6 +169,32 @@ const WorkerTerminationScreen = ({ navigation }) => {
                                 Your profile is now visible for other potential employers.
                             </Text>
                         </View>
+
+                        {/* Client Review Section */}
+                        {!reviewSubmitted && (
+                            <View style={styles.reviewSection}>
+                                <Text style={styles.sectionTitle}>Rate Your Client</Text>
+                                <View style={styles.starsRow}>
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                                            <Icon name={star <= rating ? "star" : "star-outline"} size={40} color="#FFD700" style={{ marginRight: 8 }}/>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <TextInput
+                                    style={styles.reviewInput}
+                                    placeholder="Share your experience working with this client..."
+                                    placeholderTextColor="#999"
+                                    multiline
+                                    numberOfLines={3}
+                                    value={reviewComment}
+                                    onChangeText={setReviewComment}
+                                />
+                                <TouchableOpacity style={styles.submitReviewBtn} onPress={handleSubmitReview}>
+                                    <Text style={styles.submitReviewText}>Submit Review</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 )}
             </ScrollView>
@@ -259,7 +321,20 @@ const styles = StyleSheet.create({
         elevation: 3,
         marginBottom: 20
     },
-    findJobText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' }
+    findJobText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+    
+    reviewSection: { marginBottom: 30, backgroundColor: '#FFF', padding: 20, borderRadius: 20, elevation: 2 },
+    starsRow: { flexDirection: 'row', marginTop: 5, marginBottom: 15, justifyContent: 'center' },
+    reviewInput: {
+        borderWidth: 1, borderColor: '#DDD', borderRadius: 12, padding: 15,
+        minHeight: 100, textAlignVertical: 'top', fontSize: 16, backgroundColor: '#F9F9F9',
+        marginBottom: 15
+    },
+    submitReviewBtn: {
+        backgroundColor: '#4CAF50', height: 50, borderRadius: 15,
+        justifyContent: 'center', alignItems: 'center', elevation: 2
+    },
+    submitReviewText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' }
 });
 
 export default WorkerTerminationScreen;

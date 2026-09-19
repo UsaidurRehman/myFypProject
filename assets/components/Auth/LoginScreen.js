@@ -9,12 +9,14 @@
 //   SafeAreaView,
 //   KeyboardAvoidingView,
 //   Platform,
-//   ActivityIndicator
+//   ActivityIndicator,
+//   Modal
 // } from 'react-native';
 // import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 // import AsyncStorage from '@react-native-async-storage/async-storage';
 // import NotificationHelper from '../Notification/NotificationHelper';
 // import { API_AUTH } from '../../config';
+// import { detectAndUpdateLocation } from '../helpers/locationHelper';
 
 // const LOGO_IMG = require('../../images/logo.png');
 
@@ -25,6 +27,12 @@
 //   const [isPasswordVisible, setPasswordVisible] = useState(false);
 //   const [rememberMe, setRememberMe] = useState(false);
 //   const [isLoading, setIsLoading] = useState(false);
+//   const [showLocationModal, setShowLocationModal] = useState(false);
+
+//   const handleGoToMap = () => {
+//     setShowLocationModal(false);
+//     navigation.replace('MapScreen', { requireLocationSave: true });
+//   };
 
 //   const getIdentifierPlaceholder = () => {
 //     switch (role) {
@@ -53,7 +61,10 @@
 //   };
 
 //   const handleLogin = async () => {
-//     if (!emailOrCnic || !password) {
+//     const trimmedIdentifier = emailOrCnic.trim();
+//     const trimmedPassword = password.trim();
+
+//     if (!trimmedIdentifier || !trimmedPassword) {
 //       NotificationHelper.showError("Please enter your credentials.");
 //       return;
 //     }
@@ -70,46 +81,77 @@
 //         },
 //         body: JSON.stringify({
 //           Role: role,
-//           EmailOrCnic: emailOrCnic,
-//           Password: password
+//           EmailOrCnic: trimmedIdentifier,
+//           Password: trimmedPassword
 //         })
 //       });
 
 //       const result = await response.json();
 
 //       if (response.ok) {
-//         await AsyncStorage.setItem('userToken', result.token);
-//         await AsyncStorage.setItem('userRole', result.role);
-//         await AsyncStorage.setItem('userName', result.name || '');
-//         await AsyncStorage.setItem('userPicture', result.picture || '');
-//         await AsyncStorage.setItem('userAddress', result.address || '');
-//         await AsyncStorage.setItem('userPhone', result.phone || '');
+//         console.log('✅ Login API Response (OK):', { role: result.role, token: result.token?.substring(0, 20) + '...', clientId: result.clientId });
+        
+//         // 1. Prepare key-value pairs for atomic batch storage
+//         const storageItems = [
+//           ['userToken', result.token || ''],
+//           ['userRole', result.role || role],
+//           ['userName', result.name || ''],
+//           ['userPicture', result.picture || ''],
+//           ['userAddress', result.address || ''],
+//           ['userPhone', result.phone || ''],
+//           ['userEmail', result.email || (role === 'Client' ? trimmedIdentifier : '')],
+//         ];
 
-//         if (result.clientId) await AsyncStorage.setItem('clientId', result.clientId.toString());
-//         if (result.workerId) await AsyncStorage.setItem('workerId', result.workerId.toString());
-//         if (result.companyId) await AsyncStorage.setItem('companyId', result.companyId.toString());
-//         if (result.policeId) await AsyncStorage.setItem('policeId', result.policeId.toString());
-//         if (result.email) await AsyncStorage.setItem('userEmail', result.email);
+//         // 2. Add role-specific IDs safely if provided
+//         if (result.clientId != null) storageItems.push(['clientId', result.clientId.toString()]);
+//         if (result.workerId != null) storageItems.push(['workerId', result.workerId.toString()]);
+//         if (result.companyId != null) storageItems.push(['companyId', result.companyId.toString()]);
+//         if (result.policeId != null) storageItems.push(['policeId', result.policeId.toString()]);
+
+//         // Save everything to AsyncStorage
+//         await AsyncStorage.multiSet(storageItems);
+//         console.log('✅ AsyncStorage: Saved token, role, clientId, and user info');
 
 //         NotificationHelper.showSuccess("Login Successful!");
 
-//         if (result.role === 'Client') {
-//           navigation.replace('FindServiceScreen');
-//         } else if (result.role === 'Worker') {
+//         // 3. Handle Navigation & GPS location detection
+//         const userRole = result.role || role;
+
+//         if (userRole === 'Client') {
+//           try {
+//             console.log('📍 Starting location detection for Client...');
+//             const locSuccess = await detectAndUpdateLocation();
+//             console.log('📍 Location detection result:', locSuccess);
+//           } catch (locErr) {
+//             console.warn('📍 Location detection failed/skipped during login:', locErr.message);
+//           }
+
+//           const savedLat = await AsyncStorage.getItem('clientLatitude');
+//           const savedLng = await AsyncStorage.getItem('clientLongitude');
+//           let hasDbLocation = (result.latitude != null && result.longitude != null && result.latitude != 0 && result.longitude != 0);
+//           let hasLocalLocation = (savedLat != null && savedLng != null && parseFloat(savedLat) !== 0 && parseFloat(savedLng) !== 0);
+
+//           if (!hasDbLocation && !hasLocalLocation) {
+//             console.log('⚠️ No valid coordinates found. Popping location enforcement modal.');
+//             setShowLocationModal(true);
+//           } else {
+//             console.log('🔄 Navigating to FindServiceScreen');
+//             navigation.replace('FindServiceScreen');
+//           }
+//         } else if (userRole === 'Worker') {
 //           navigation.replace('WorkerDashboardScreen');
-//         }else if(result.role==="Company"){
-//         navigation.replace('WorkerDirectoryScreen');
-//         }else if(result.role==="Police"){
+//         } else if (userRole === 'Company') {
+//           navigation.replace('WorkerDirectoryScreen');
+//         } else if (userRole === 'Police') {
 //           navigation.replace('PoliceVerificationPortal');
-//         }
-//          else {
-//           NotificationHelper.showSuccess(`${result.role} account logged in successfully!`);
+//         } else {
+//           NotificationHelper.showSuccess(`${userRole} account logged in successfully!`);
 //         }
 //       } else {
 //         NotificationHelper.showError(result.message || "Invalid credentials.");
 //       }
 //     } catch (error) {
-//       console.error(error);
+//       console.error('Login Error:', error);
 //       NotificationHelper.showError("Cannot reach the server.");
 //     } finally {
 //       setIsLoading(false);
@@ -242,6 +284,25 @@
 //           </TouchableOpacity>
 //         </View>
 //       </KeyboardAvoidingView>
+
+//       <Modal
+//         visible={showLocationModal}
+//         transparent={true}
+//         animationType="fade"
+//       >
+//         <View style={styles.modalOverlay}>
+//           <View style={styles.modalContent}>
+//             <Icon name="map-marker-alert" size={50} color="#1E64D3" style={{ marginBottom: 15 }} />
+//             <Text style={styles.modalTitle}>Location Required</Text>
+//             <Text style={styles.modalText}>
+//               In order to connect you with nearby services, we need your location. Please drop a pin on the map to continue.
+//             </Text>
+//             <TouchableOpacity style={styles.modalButton} onPress={handleGoToMap}>
+//               <Text style={styles.modalButtonText}>Go to Map</Text>
+//             </TouchableOpacity>
+//           </View>
+//         </View>
+//       </Modal>
 //     </SafeAreaView>
 //   );
 // };
@@ -335,10 +396,15 @@
 //     elevation: 5,
 //   },
 //   signupText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+//   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+//   modalContent: { width: '80%', backgroundColor: '#FFF', borderRadius: 20, padding: 25, alignItems: 'center', elevation: 10 },
+//   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1A1C1E', marginBottom: 10 },
+//   modalText: { fontSize: 15, color: '#5F6368', textAlign: 'center', marginBottom: 20, lineHeight: 22 },
+//   modalButton: { backgroundColor: '#1E64D3', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, elevation: 3 },
+//   modalButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
 // });
 
 // export default LoginScreen;
-
 
 import React, { useState } from 'react';
 import {
@@ -358,7 +424,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { API_AUTH } from '../../config';
-import { detectAndUpdateLocation } from '../helpers/locationHelper';
+import { detectAndUpdateLocation, detectAndUpdateWorkerLocation } from '../helpers/locationHelper';
 
 const LOGO_IMG = require('../../images/logo.png');
 
@@ -370,10 +436,15 @@ const LoginScreen = ({ navigation }) => {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [targetScreen, setTargetScreen] = useState('FindServiceScreen');
+  const [userRoleContext, setUserRoleContext] = useState('Client');
 
   const handleGoToMap = () => {
     setShowLocationModal(false);
-    navigation.replace('MapScreen', { requireLocationSave: true });
+    navigation.replace('MapScreen', { 
+      userRole: userRoleContext,
+      requireLocationSave: true 
+    });
   };
 
   const getIdentifierPlaceholder = () => {
@@ -458,30 +529,53 @@ const LoginScreen = ({ navigation }) => {
 
         // 3. Handle Navigation & GPS location detection
         const userRole = result.role || role;
+        setUserRoleContext(userRole);
 
         if (userRole === 'Client') {
           try {
             console.log('📍 Starting location detection for Client...');
-            const locSuccess = await detectAndUpdateLocation();
-            console.log('📍 Location detection result:', locSuccess);
+            await detectAndUpdateLocation();
           } catch (locErr) {
             console.warn('📍 Location detection failed/skipped during login:', locErr.message);
           }
 
           const savedLat = await AsyncStorage.getItem('clientLatitude');
           const savedLng = await AsyncStorage.getItem('clientLongitude');
-          let hasDbLocation = (result.latitude != null && result.longitude != null && result.latitude != 0 && result.longitude != 0);
+          let hasDbLocation = (result.latitude != null && result.longitude != null && result.latitude !== 0 && result.longitude !== 0);
           let hasLocalLocation = (savedLat != null && savedLng != null && parseFloat(savedLat) !== 0 && parseFloat(savedLng) !== 0);
 
           if (!hasDbLocation && !hasLocalLocation) {
-            console.log('⚠️ No valid coordinates found. Popping location enforcement modal.');
+            console.log('⚠️ Client: No valid coordinates found. Showing location modal.');
+            setTargetScreen('FindServiceScreen');
             setShowLocationModal(true);
           } else {
             console.log('🔄 Navigating to FindServiceScreen');
             navigation.replace('FindServiceScreen');
           }
         } else if (userRole === 'Worker') {
-          navigation.replace('WorkerDashboardScreen');
+          try {
+            console.log('📍 Starting location detection for Worker...');
+            await detectAndUpdateWorkerLocation();
+          } catch (locErr) {
+            console.warn('📍 Worker location detection failed/skipped during login:', locErr.message);
+          }
+
+          const savedWorkerLat = await AsyncStorage.getItem('workerLatitude');
+          const savedWorkerLng = await AsyncStorage.getItem('workerLongitude');
+          let hasDbLocation = (result.latitude != null && result.longitude != null && result.latitude !== 0 && result.longitude !== 0);
+          let hasLocalLocation = (savedWorkerLat != null && savedWorkerLng != null && parseFloat(savedWorkerLat) !== 0 && parseFloat(savedWorkerLng) !== 0);
+
+          if (!hasDbLocation && !hasLocalLocation) {
+            console.log('⚠️ Worker: No valid coordinates found. Redirecting to MapScreen.');
+            navigation.replace('MapScreen', {
+              userRole: 'Worker',
+              workerId: result.workerId,
+              requireLocationSave: true,
+            });
+          } else {
+            console.log('🔄 Navigating to WorkerDashboardScreen');
+            navigation.replace('WorkerDashboardScreen');
+          }
         } else if (userRole === 'Company') {
           navigation.replace('WorkerDirectoryScreen');
         } else if (userRole === 'Police') {
@@ -637,7 +731,7 @@ const LoginScreen = ({ navigation }) => {
             <Icon name="map-marker-alert" size={50} color="#1E64D3" style={{ marginBottom: 15 }} />
             <Text style={styles.modalTitle}>Location Required</Text>
             <Text style={styles.modalText}>
-              In order to connect you with nearby services, we need your location. Please drop a pin on the map to continue.
+              In order to connect you with nearby requests and services, we need your location. Please drop a pin on the map to continue.
             </Text>
             <TouchableOpacity style={styles.modalButton} onPress={handleGoToMap}>
               <Text style={styles.modalButtonText}>Go to Map</Text>
@@ -710,9 +804,24 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   marginTop: { marginTop: 15 },
-  iconBackground: { marginRight: 12 },
-  input: { flex: 1, fontSize: 16, color: '#333' },
-  eyeIcon: { padding: 5 },
+  iconBackground: {
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+    color: '#333',
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+  },
+  eyeIcon: {
+    padding: 5,
+    alignSelf: 'center',
+  },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15, marginBottom: 25 },
   checkboxRow: { flexDirection: 'row', alignItems: 'center' },
   rememberText: { marginLeft: 8, color: '#555', fontSize: 14 },

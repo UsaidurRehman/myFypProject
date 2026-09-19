@@ -65,6 +65,7 @@ CREATE TABLE Reviews (
     Interview_ID INT, -- Linking to the specific hiring instance
     Rating INT CHECK (Rating BETWEEN 1 AND 5),
     Comment TEXT,
+    ReviewerRole VARCHAR(50) DEFAULT 'Client',
     ReviewDate DATETIME DEFAULT GETDATE(),
     FOREIGN KEY (Interview_ID) REFERENCES Interview(Interview_ID)
 );

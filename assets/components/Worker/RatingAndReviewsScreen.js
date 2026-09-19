@@ -7,22 +7,27 @@ import {
     SafeAreaView,
     TouchableOpacity,
     StatusBar,
-    ActivityIndicator
+    ActivityIndicator,
+    Image
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_DASHBOARD } from '../../config';
 
 const RatingAndReviewsScreen = ({ navigation, route }) => {
-    const { workerId, initialRating, initialReviewCount } = route.params;
-    
+    const { workerId, initialRating, initialReviewCount } = route.params || {};
+
     const [reviews, setReviews] = useState([]);
     const [averageRating, setAverageRating] = useState(initialRating || "0.0");
     const [reviewCount, setReviewCount] = useState(initialReviewCount || 0);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        fetchReviews();
+        if (workerId) {
+            fetchReviews();
+        } else {
+            setIsLoading(false);
+        }
     }, [workerId]);
 
     const fetchReviews = async () => {
@@ -76,7 +81,23 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" />
+            <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+
+            {/* Header bar matching standard app header */}
+            <View style={styles.headerBar}>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                        <Icon name="arrow-left" size={24} color="#1F2937" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Rating & Reviews</Text>
+                </View>
+                <View style={styles.logoBox}>
+                    <Image
+                        source={require('../../images/logo.png')}
+                        style={styles.logoImage}
+                    />
+                </View>
+            </View>
 
             {isLoading ? (
                 <View style={styles.loaderContainer}>
@@ -84,10 +105,10 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
                     <Text style={styles.loaderText}>Loading your reviews...</Text>
                 </View>
             ) : (
-                <ScrollView contentContainerStyle={styles.scrollContent}>
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     {/* Overall Rating Header Card */}
                     <View style={styles.headerCard}>
-                        <Text style={styles.headerTitle}>Your Overall Rating</Text>
+                        <Text style={styles.cardHeaderTitle}>Your Overall Rating</Text>
                         <View style={styles.ratingRow}>
                             <Text style={styles.bigRating}>{averageRating}</Text>
                             <View style={styles.headerStars}>
@@ -103,7 +124,20 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
                             <View key={item.id} style={styles.reviewCard}>
                                 <View style={styles.cardTop}>
                                     <View>
-                                        <Text style={styles.reviewerName}>{item.name}</Text>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                if (item.clientId) {
+                                                    navigation.navigate('ClientProfileScreen', {
+                                                        clientId: item.clientId,
+                                                        id: item.clientId
+                                                    });
+                                                } else {
+                                                    console.warn("Client ID is missing for this review.");
+                                                }
+                                            }}
+                                        >
+                                            <Text style={styles.reviewerName}>{item.name}</Text>
+                                        </TouchableOpacity>
                                         <View style={styles.dateRow}>
                                             <Icon name="calendar-range" size={14} color="#888" />
                                             <Text style={styles.employerDuration}>{item.date}</Text>
@@ -122,14 +156,6 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
                             <Text style={styles.emptyText}>You don't have any reviews yet.</Text>
                         </View>
                     )}
-
-                    {/* Back Button */}
-                    <TouchableOpacity
-                        style={styles.backBtn}
-                        onPress={() => navigation.goBack()}
-                    >
-                        <Text style={styles.backBtnText}>Back to Dashboard</Text>
-                    </TouchableOpacity>
                 </ScrollView>
             )}
         </SafeAreaView>
@@ -139,26 +165,70 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: '#F3F6FC',
+    },
+    /* ── Header ── */
+    headerBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    backBtn: {
+        padding: 4,
+        marginRight: 8,
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#111827',
+        letterSpacing: -0.3,
+    },
+    logoBox: {
+        width: 110,
+        height: 90,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    logoImage: {
+        width: 110,
+        height: 90,
+        resizeMode: 'contain',
     },
     scrollContent: {
         padding: 20,
+        paddingBottom: 30,
     },
     headerCard: {
         backgroundColor: '#FFFFFF',
         borderRadius: 25,
         padding: 20,
-        elevation: 5,
+        elevation: 4,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        marginBottom: 25,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        marginBottom: 20,
         borderWidth: 1,
-        borderColor: '#E0E0E0',
+        borderColor: '#E5E7EB',
     },
-    headerTitle: {
+    cardHeaderTitle: {
         fontSize: 18,
+        fontWeight: '700',
         color: '#333',
         marginBottom: 10,
     },
@@ -186,8 +256,12 @@ const styles = StyleSheet.create({
         padding: 15,
         marginBottom: 15,
         borderWidth: 1,
-        borderColor: '#E0E0E0',
+        borderColor: '#E5E7EB',
         elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
     },
     cardTop: {
         flexDirection: 'row',
@@ -203,7 +277,7 @@ const styles = StyleSheet.create({
     employerDuration: {
         fontSize: 12,
         color: '#888',
-        marginTop: 2,
+        marginLeft: 4,
     },
     starRow: {
         flexDirection: 'row',
@@ -213,20 +287,6 @@ const styles = StyleSheet.create({
         color: '#555',
         fontStyle: 'italic',
         lineHeight: 18,
-    },
-    backBtn: {
-        backgroundColor: '#1E75EB',
-        borderRadius: 25,
-        height: 50,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 20,
-        elevation: 3,
-    },
-    backBtnText: {
-        color: '#FFFFFF',
-        fontSize: 18,
-        fontWeight: 'bold',
     },
     loaderContainer: {
         flex: 1,

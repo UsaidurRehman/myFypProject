@@ -7,7 +7,8 @@ import {
     SafeAreaView,
     ScrollView,
     StatusBar,
-    ActivityIndicator
+    ActivityIndicator,
+    Image
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -71,30 +72,33 @@ const AcceptedRequestScreen = ({ navigation }) => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" />
+            <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
 
-            {/* Background Light Blue Circle Decoration */}
-            <View style={styles.bgDecoration} />
-
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                {/* Header Section */}
-                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                    <Icon name="arrow-left" size={24} color="#666" />
-                </TouchableOpacity>
-
-                <View style={styles.headerTitleContainer}>
-                    <Text style={styles.mainTitle}>Accepted Request</Text>
-                    <Text style={styles.subTitle}>Accepted Offers</Text>
+            {/* Header bar matching standard app header */}
+            <View style={styles.headerBar}>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                        <Icon name="arrow-left" size={24} color="#1F2937" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Accepted Requests</Text>
                 </View>
+                <View style={styles.logoBox}>
+                    <Image
+                        source={require('../../images/logo.png')}
+                        style={styles.logoImage}
+                    />
+                </View>
+            </View>
 
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <Text style={styles.sectionHeading}>
                     New Accepted Requests ({acceptedRequests.length})
                 </Text>
 
                 {isLoading ? (
-                    <ActivityIndicator size="large" color="#4CAF50" />
+                    <ActivityIndicator size="large" color="#1E64D3" style={{ marginTop: 40 }} />
                 ) : acceptedRequests.length === 0 ? (
-                    <Text style={{ textAlign: 'center', marginTop: 20, fontStyle: 'italic', color: '#999' }}>No accepted requests found.</Text>
+                    <Text style={{ textAlign: 'center', marginTop: 40, fontStyle: 'italic', color: '#999' }}>No accepted requests found.</Text>
                 ) : (
                     acceptedRequests.map((item) => (
                         <View key={item.id} style={styles.card}>
@@ -108,7 +112,25 @@ const AcceptedRequestScreen = ({ navigation }) => {
                                 </View>
                             </View>
 
-                            <Text style={styles.clientLabel}>Client: {item.client}</Text>
+                            <View style={styles.clientHeaderRow}>
+                                <TouchableOpacity onPress={() => {
+                                    if (item.clientId) {
+                                        navigation.navigate('ClientProfileScreen', {
+                                            clientId: item.clientId,
+                                            id: item.clientId
+                                        });
+                                    } else {
+                                        console.warn("Client ID is missing for this review.");
+                                    }
+                                }}
+                                >
+                                    <Text style={styles.clientName}>{item.client || "Customer"}</Text>
+                                </TouchableOpacity>
+                                <View style={styles.ratingBadge}>
+                                    <Icon name="star" size={14} color="#FFD700" />
+                                    <Text style={styles.ratingText}>{item.clientRating > 0 ? item.clientRating.toFixed(1) : "N/A"}</Text>
+                                </View>
+                            </View>
 
                             <View style={styles.locationContainer}>
                                 <View style={styles.pinBg}>
@@ -138,63 +160,72 @@ const AcceptedRequestScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#F3F6FC',
     },
-    bgDecoration: {
-        position: 'absolute',
-        top: -50,
-        left: -50,
-        width: 200,
-        height: 200,
-        borderRadius: 100,
-        backgroundColor: '#E3F2FD',
-        zIndex: -1,
+    /* ── Header ── */
+    headerBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    backBtn: {
+        padding: 4,
+        marginRight: 8,
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#111827',
+        letterSpacing: -0.3,
+    },
+    logoBox: {
+        width: 110,
+        height: 90,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    logoImage: {
+        width: 110,
+        height: 90,
+        resizeMode: 'contain',
     },
     scrollContent: {
         padding: 20,
-    },
-    backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F5F5F5',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 20,
-        zIndex: 10,
-        elevation: 5,
-    },
-    headerTitleContainer: {
-        marginBottom: 30,
-    },
-    mainTitle: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#000',
-    },
-    subTitle: {
-        fontSize: 16,
-        color: '#BDBDBD',
-        marginTop: 5,
+        paddingBottom: 30,
     },
     sectionHeading: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
-        color: '#000',
-        marginBottom: 20,
+        color: '#111827',
+        marginBottom: 16,
     },
     card: {
         backgroundColor: '#FFFFFF',
         borderRadius: 20,
-        padding: 15,
-        marginBottom: 20,
-        elevation: 5,
+        padding: 16,
+        marginBottom: 16,
+        elevation: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.08,
         shadowRadius: 4,
         borderWidth: 1,
-        borderColor: '#F0F0F0',
+        borderColor: '#E5E7EB',
     },
     cardHeader: {
         flexDirection: 'row',
@@ -218,6 +249,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
+    clientName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#111827',
+        flex: 1,
+        marginRight: 8,
+    },
     greenDot: {
         width: 8,
         height: 8,
@@ -230,11 +268,34 @@ const styles = StyleSheet.create({
         color: '#4CAF50',
         fontWeight: '500',
     },
-    clientLabel: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#000',
+    clientHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 10,
+    },
+    clientLabel: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#111827',
+        flex: 1,
+        marginRight: 8,
+    },
+    ratingBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF9E6',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#FFE599',
+    },
+    ratingText: {
+        marginLeft: 3,
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#B45309',
     },
     locationContainer: {
         flexDirection: 'row',

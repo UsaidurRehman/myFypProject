@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    StyleSheet, View, Text, Image, TouchableOpacity, 
+    StyleSheet, View, Text, Image, TouchableOpacity,
     TextInput, SafeAreaView, ScrollView, StatusBar, ActivityIndicator
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -16,6 +16,8 @@ const LeaveJobScreen = ({ navigation }) => {
     const [jobData, setJobData] = useState(null);
     const [lastWorkingDay, setLastWorkingDay] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
     const [showDatePicker, setShowDatePicker] = useState(false);
+    const [rating, setRating] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
 
     useEffect(() => {
         fetchActiveJob();
@@ -25,7 +27,7 @@ const LeaveJobScreen = ({ navigation }) => {
         try {
             const workerId = await AsyncStorage.getItem('workerId');
             const token = await AsyncStorage.getItem('userToken');
-            
+
             if (!workerId) {
                 NotificationHelper.showError("Worker identity not found. Please re-login.");
                 navigation.goBack();
@@ -58,6 +60,11 @@ const LeaveJobScreen = ({ navigation }) => {
             return;
         }
 
+        if (rating === 0) {
+            NotificationHelper.showError("Please provide a rating for the client.");
+            return;
+        }
+
         if (!jobData || !jobData.interviewId) {
             NotificationHelper.showError("Process error: Job data missing.");
             return;
@@ -65,7 +72,7 @@ const LeaveJobScreen = ({ navigation }) => {
 
         try {
             const token = await AsyncStorage.getItem('userToken');
-            
+
             const payload = {
                 InterviewId: jobData.interviewId,
                 ResignationReason: reason,
@@ -84,6 +91,23 @@ const LeaveJobScreen = ({ navigation }) => {
             });
 
             if (response.ok) {
+                try {
+                    await fetch(`${API_DASHBOARD}/SubmitWorkerReviewToClient`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            InterviewId: jobData.interviewId,
+                            Rating: rating,
+                            Comment: reviewComment
+                        })
+                    });
+                } catch (e) {
+                    console.error("Review error", e);
+                }
+
                 NotificationHelper.showSuccess("Resignation submitted successfully.");
                 navigation.navigate('WorkerDashboardScreen');
             } else {
@@ -142,13 +166,13 @@ const LeaveJobScreen = ({ navigation }) => {
 
                 <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Proposed Last Working Day</Text>
-                    <TouchableOpacity 
-                        style={styles.dateDisplay} 
+                    <TouchableOpacity
+                        style={styles.dateDisplay}
                         onPress={() => setShowDatePicker(true)}
                         activeOpacity={0.7}
                     >
-                        <Text style={styles.dateText}>{lastWorkingDay.toLocaleDateString('en-US', { 
-                            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
+                        <Text style={styles.dateText}>{lastWorkingDay.toLocaleDateString('en-US', {
+                            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
                         })}</Text>
                         <Icon name="calendar-clock" size={24} color="#1E64D3" />
                     </TouchableOpacity>
@@ -174,9 +198,33 @@ const LeaveJobScreen = ({ navigation }) => {
                         placeholder="Please explain why you are leaving..."
                         placeholderTextColor="#999"
                         multiline
-                        numberOfLines={4}
+                        numberOfLines={3}
                         value={reason}
                         onChangeText={setReason}
+                    />
+                </View>
+
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Client Rating</Text>
+                    <View style={{ flexDirection: 'row', marginTop: 5, marginBottom: 10 }}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                            <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                                <Icon name={star <= rating ? "star" : "star-outline"} size={40} color="#FFD700" style={{ marginRight: 8 }} />
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Client Feedback</Text>
+                    <TextInput
+                        style={styles.reasonInput}
+                        placeholder="Share your experience working with this client..."
+                        placeholderTextColor="#999"
+                        multiline
+                        numberOfLines={3}
+                        value={reviewComment}
+                        onChangeText={setReviewComment}
                     />
                 </View>
 
@@ -230,11 +278,11 @@ const styles = StyleSheet.create({
     },
     employerName: { fontSize: 20, fontWeight: 'bold', color: '#333' },
     employerAddress: { fontSize: 14, color: '#666', marginTop: 4 },
-    noticeBadge: { 
-        backgroundColor: '#E3F2FD', 
-        alignSelf: 'flex-start', 
-        paddingHorizontal: 10, 
-        paddingVertical: 5, 
+    noticeBadge: {
+        backgroundColor: '#E3F2FD',
+        alignSelf: 'flex-start',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
         borderRadius: 8,
         marginTop: 15
     },
