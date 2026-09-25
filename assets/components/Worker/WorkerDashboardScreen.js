@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -8,7 +9,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import NotificationHelper from '../Notification/NotificationHelper';
-import { SERVER_BASE } from '../../config';
+import { SERVER_BASE, API_DASHBOARD } from '../../config';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -37,6 +38,9 @@ const WorkerDashboardScreen = ({ navigation }) => {
     // Reviews State
     const [reviewsList, setReviewsList] = useState([]);
     const [loadingReviews, setLoadingReviews] = useState(false);
+    const [reviewsAverage, setReviewsAverage] = useState(null); // from GetWorkerReviews
+    const [reviewsCount, setReviewsCount] = useState(null);     // from GetWorkerReviews
+    const [reviewsError, setReviewsError] = useState(false);    // request failed (vs. genuinely empty)
 
     useFocusEffect(
         useCallback(() => {
@@ -110,14 +114,39 @@ const WorkerDashboardScreen = ({ navigation }) => {
 
     // --- REVIEWS API HANDLER ---
     const fetchWorkerReviews = async (id) => {
+        if (!id) return;
         setLoadingReviews(true);
+        setReviewsError(false);
         try {
-            const response = await fetch(`${SERVER_BASE}/api/RatingReview/GetWorkerReviews/${id}`);
+            const token = await AsyncStorage.getItem('userToken');
+            const response = await fetch(`${API_DASHBOARD}/GetWorkerReviews/${id}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.status === 401) {
+                NotificationHelper.showError("Session expired. Please login again.");
+                navigation.replace('Login');
+                return;
+            }
+
             if (response.ok) {
                 const data = await response.json();
-                setReviewsList(data);
+                const list = Array.isArray(data) ? data : (data?.reviews || []);
+                setReviewsList(list);
+                if (data?.averageRating != null) setReviewsAverage(String(data.averageRating));
+                if (data?.reviewCount != null) setReviewsCount(data.reviewCount);
+            } else {
+                setReviewsList([]);
+                setReviewsError(true);
+                console.error(`GetWorkerReviews failed [${response.status}]`);
             }
         } catch (error) {
+            setReviewsList([]);
+            setReviewsError(true);
             console.error('Fetch reviews error:', error);
         } finally {
             setLoadingReviews(false);
@@ -150,7 +179,6 @@ const WorkerDashboardScreen = ({ navigation }) => {
         try {
             const workerId = await AsyncStorage.getItem('workerId');
             
-            // Format time HH:mm:ss for backend
             const formatTime = (dateObj) => {
                 const h = dateObj.getHours().toString().padStart(2, '0');
                 const m = dateObj.getMinutes().toString().padStart(2, '0');
@@ -237,6 +265,21 @@ const WorkerDashboardScreen = ({ navigation }) => {
         }
     };
 
+    // Increase / Decrease Radius Handlers
+    const currentRadiusValue = parseInt(selectedRadius) || 1;
+
+    const handleIncreaseRadius = () => {
+        if (currentRadiusValue < 70) {
+            handleRadiusChange(`${currentRadiusValue + 1} km`);
+        }
+    };
+
+    const handleDecreaseRadius = () => {
+        if (currentRadiusValue > 1) {
+            handleRadiusChange(`${currentRadiusValue - 1} km`);
+        }
+    };
+
     // --- USER HANDLERS ---
     const handleLogout = async () => {
         await AsyncStorage.clear();
@@ -291,8 +334,6 @@ const WorkerDashboardScreen = ({ navigation }) => {
     }
 
     if (!worker) return null;
-
-    const radiusOptions = ['1 km', '2 km', '3 km', '4 km', '5 km'];
 
     const imagePath = worker.picture || worker.Picture || worker.imageUrl;
 
@@ -378,7 +419,7 @@ const WorkerDashboardScreen = ({ navigation }) => {
                 </View>
             </View>
 
-            {/* Swipeable Tab Container (Finger Rotation Left-Right & Vice Versa) */}
+            {/* Swipeable Tab Container */}
             <ScrollView
                 ref={tabScrollViewRef}
                 horizontal
@@ -434,25 +475,41 @@ const WorkerDashboardScreen = ({ navigation }) => {
 
                         <View style={styles.divider} />
 
-                        {/* Work Radius */}
+                        {/* Work Radius Adjustment Strip */}
                         <View style={styles.radiusRowHeader}>
-                            <Text style={styles.itemTitle}>Work Radius <Text style={{ color: '#8E8E93', fontWeight: 'normal' }}>(Service Area)</Text></Text>
+                            <Text style={styles.itemTitle}>
+                                Work Radius <Text style={{ color: '#8E8E93', fontWeight: 'normal' }}>(Service Area)</Text>
+                            </Text>
                             <Text style={styles.radiusBadgeText}>{selectedRadius}</Text>
                         </View>
 
-                        <View style={styles.radiusPillsRow}>
-                            {radiusOptions.map((rad) => (
-                                <TouchableOpacity
-                                    key={rad}
-                                    style={[styles.radiusPill, selectedRadius === rad && styles.radiusPillActive]}
-                                    onPress={() => handleRadiusChange(rad)}
-                                >
-                                    <Text style={[styles.radiusPillText, selectedRadius === rad && styles.radiusPillTextActive]}>
-                                        {rad}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
+                        <View style={styles.radiusStripContainer}>
+                            <TouchableOpacity
+                                style={[styles.radiusAdjustBtn, currentRadiusValue <= 1 && styles.radiusBtnDisabled]}
+                                onPress={handleDecreaseRadius}
+                                disabled={currentRadiusValue <= 1}
+                            >
+                                <Icon name="minus" size={18} color={currentRadiusValue <= 1 ? '#C7C7CC' : '#1E64D3'} />
+                            </TouchableOpacity>
+
+                            <View style={styles.radiusTrackBackground}>
+                                <View
+                                    style={[
+                                        styles.radiusTrackFill,
+                                        { width: `${(currentRadiusValue / 70) * 100}%` }
+                                    ]}
+                                />
+                            </View>
+
+                            <TouchableOpacity
+                                style={[styles.radiusAdjustBtn, currentRadiusValue >= 70 && styles.radiusBtnDisabled]}
+                                onPress={handleIncreaseRadius}
+                                disabled={currentRadiusValue >= 70}
+                            >
+                                <Icon name="plus" size={18} color={currentRadiusValue >= 70 ? '#C7C7CC' : '#1E64D3'} />
+                            </TouchableOpacity>
                         </View>
+                        <Text style={styles.radiusLimitText}>Max Limit: 70 km</Text>
                     </View>
 
                     {/* Interview Requests Notification Tab */}
@@ -489,7 +546,7 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         </View>
                     </TouchableOpacity>
 
-                    {/* Moved Here: Employment Actions & Termination Buttons */}
+                    {/* Employment Actions & Termination Buttons */}
                     <View style={styles.actionCard}>
                         <View style={styles.sectionHeader}>
                             <Icon name="account-alert-outline" size={24} color="#FF4D4D" />
@@ -585,8 +642,12 @@ const WorkerDashboardScreen = ({ navigation }) => {
                             <Text style={styles.sectionHeading}>Customer Reviews</Text>
                             <View style={styles.overallRatingBadge}>
                                 <Icon name="star" size={18} color="#FFD700" />
-                                <Text style={styles.overallRatingText}>{worker.rating || "0.0"}</Text>
-                                <Text style={styles.overallCountText}>({worker.reviewCount || 0})</Text>
+                                <Text style={styles.overallRatingText}>
+                                    {reviewsAverage ?? worker.rating ?? "0.0"}
+                                </Text>
+                                <Text style={styles.overallCountText}>
+                                    ({reviewsCount ?? worker.reviewCount ?? 0})
+                                </Text>
                             </View>
                         </View>
 
@@ -595,40 +656,48 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         {loadingReviews ? (
                             <ActivityIndicator size="small" color="#1E64D3" style={{ marginVertical: 20 }} />
                         ) : reviewsList && reviewsList.length > 0 ? (
-                            reviewsList.map((item, index) => (
-                                <View key={item.id || index} style={styles.inlineReviewCard}>
-                                    <View style={styles.reviewHeaderRow}>
-                                        <View style={styles.reviewUserRow}>
-                                            <View style={styles.reviewAvatarPlaceholder}>
-                                                <Text style={styles.reviewAvatarText}>
-                                                    {item.clientName ? item.clientName.charAt(0).toUpperCase() : 'C'}
-                                                </Text>
+                            reviewsList.map((item, index) => {
+                                const reviewerName = item.reviewerName || item.name || item.clientName || 'Customer';
+                                const starsGiven = Math.round(Number(item.rating) || 0);
+                                return (
+                                    <View key={item.id || index} style={styles.inlineReviewCard}>
+                                        <View style={styles.reviewHeaderRow}>
+                                            <View style={styles.reviewUserRow}>
+                                                <View style={styles.reviewAvatarPlaceholder}>
+                                                    <Text style={styles.reviewAvatarText}>
+                                                        {reviewerName.charAt(0).toUpperCase()}
+                                                    </Text>
+                                                </View>
+                                                <View>
+                                                    <Text style={styles.clientNameText}>{reviewerName}</Text>
+                                                    <Text style={styles.reviewDateText}>
+                                                        {item.duration ? `${item.date || 'Recent'} · ${item.duration}` : (item.date || 'Recent')}
+                                                    </Text>
+                                                </View>
                                             </View>
-                                            <View>
-                                                <Text style={styles.clientNameText}>{item.clientName || 'Customer'}</Text>
-                                                <Text style={styles.reviewDateText}>{item.date || 'Recent'}</Text>
+                                            <View style={styles.starsRow}>
+                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                    <Icon
+                                                        key={star}
+                                                        name={star <= starsGiven ? "star" : "star-outline"}
+                                                        size={16}
+                                                        color={star <= starsGiven ? "#FFD700" : "#E0E0E0"}
+                                                    />
+                                                ))}
                                             </View>
                                         </View>
-                                        <View style={styles.starsRow}>
-                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                <Icon
-                                                    key={star}
-                                                    name={star <= (item.rating || 5) ? "star" : "star-outline"}
-                                                    size={16}
-                                                    color="#FFD700"
-                                                />
-                                            ))}
-                                        </View>
+                                        <Text style={styles.reviewCommentText}>
+                                            {item.comment || item.reviewText || "No detailed comment provided."}
+                                        </Text>
                                     </View>
-                                    <Text style={styles.reviewCommentText}>
-                                        {item.comment || item.reviewText || "No detailed comment provided."}
-                                    </Text>
-                                </View>
-                            ))
+                                );
+                            })
                         ) : (
                             <View style={styles.emptyReviewsContainer}>
-                                <Icon name="message-draw" size={40} color="#D1D1D6" />
-                                <Text style={styles.emptyText}>No reviews found yet.</Text>
+                                <Icon name={reviewsError ? "wifi-off" : "message-draw"} size={40} color="#D1D1D6" />
+                                <Text style={styles.emptyText}>
+                                    {reviewsError ? "Couldn't load reviews. Pull back into this screen to retry." : "No reviews found yet."}
+                                </Text>
                             </View>
                         )}
                     </View>
@@ -777,14 +846,39 @@ const styles = StyleSheet.create({
     bluePillBtn: { backgroundColor: '#1E64D3', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
     bluePillBtnText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
 
-    // Radius
+    // Dynamic Radius Interactive Strip
     radiusRowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     radiusBadgeText: { fontSize: 13, fontWeight: 'bold', color: '#1E64D3' },
-    radiusPillsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    radiusPill: { flex: 1, paddingVertical: 8, backgroundColor: '#F2F2F7', borderRadius: 8, alignItems: 'center', marginHorizontal: 2 },
-    radiusPillActive: { backgroundColor: '#1E64D3' },
-    radiusPillText: { fontSize: 12, color: '#3A3A3C', fontWeight: '500' },
-    radiusPillTextActive: { color: '#FFF', fontWeight: 'bold' },
+    radiusStripContainer: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+    radiusAdjustBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#EBF3FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    radiusBtnDisabled: {
+        backgroundColor: '#F2F2F7',
+    },
+    radiusTrackBackground: {
+        flex: 1,
+        height: 8,
+        backgroundColor: '#E5E5EA',
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    radiusTrackFill: {
+        height: '100%',
+        backgroundColor: '#1E64D3',
+        borderRadius: 4,
+    },
+    radiusLimitText: {
+        fontSize: 10,
+        color: '#8E8E93',
+        textAlign: 'right',
+        marginTop: 4,
+    },
 
     // Notification Cards
     notifCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E5E5EA' },
