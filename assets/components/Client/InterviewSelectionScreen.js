@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     StyleSheet, View, Text, TouchableOpacity,
-    SafeAreaView, ScrollView, Platform, ActivityIndicator
+    SafeAreaView, ScrollView, Platform, ActivityIndicator, Switch
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -31,6 +31,7 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
     const [slotsLoading, setSlotsLoading] = useState(true);
     const [hasSlots, setHasSlots] = useState(true);
     const [isPartTime, setIsPartTime] = useState(false);
+    const [isResidenceProvided, setIsResidenceProvided] = useState(false);
     const [radius, setRadius] = useState(null);
     const [distanceKm, setDistanceKm] = useState(null);
     const [selectedSlotId, setSelectedSlotId] = useState(null);
@@ -163,7 +164,8 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                     InterviewDate: localISOTime,
                     Address: clientAddress,
                     Status: 'Pending',
-                    SlotId: isPartTime && selectedSlot ? selectedSlot.id : null
+                    SlotId: isPartTime && selectedSlot ? selectedSlot.id : null,
+                    IsResidenceProvided: !isPartTime ? isResidenceProvided : false
                 })
             });
 
@@ -324,6 +326,29 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                     </View>
                 </View>
 
+                {!isPartTime && (
+                    <View style={styles.pickerSection}>
+                        <Text style={styles.sectionHeading}>Residence Provision</Text>
+                        <View style={styles.selectorCard}>
+                            <View style={styles.iconCircleGreen}>
+                                <Icon name="home-city-outline" size={24} color="#16A34A" />
+                            </View>
+                            <View style={styles.selectorTextCol}>
+                                <Text style={styles.selectorLabel}>Will residence be provided?</Text>
+                                <Text style={styles.selectorValue}>
+                                    {isResidenceProvided ? 'Yes, residence included' : 'No residence provided'}
+                                </Text>
+                            </View>
+                            <Switch
+                                value={isResidenceProvided}
+                                onValueChange={setIsResidenceProvided}
+                                trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+                                thumbColor={isResidenceProvided ? '#16A34A' : '#F3F4F6'}
+                            />
+                        </View>
+                    </View>
+                )}
+
                 <View style={styles.spacer} />
             </ScrollView>
 
@@ -384,6 +409,7 @@ const styles = StyleSheet.create({
     iconCircleBlue: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#E3F2FD', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
     iconCirclePurple: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#F3EDF7', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
     iconCircleOrange: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#FFF3E0', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+    iconCircleGreen: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#E6F4EA', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
 
     selectorTextCol: { flex: 1 },
     selectorLabel: { fontSize: 12, color: '#888', marginBottom: 2 },

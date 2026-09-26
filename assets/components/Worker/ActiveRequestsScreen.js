@@ -9,6 +9,7 @@ import NotificationHelper from '../Notification/NotificationHelper';
 import { API_DASHBOARD, SERVER_BASE } from '../../config';
 import JobTypeBadge from '../helpers/JobTypeBadge';
 import SlotTimeLabel from '../helpers/SlotTimeLabel';
+import ResidenceBadge from '../helpers/ResidenceBadge';
 
 const ActiveRequestsScreen = ({ navigation }) => {
     const [requests, setRequests] = useState([]);
@@ -178,6 +179,7 @@ const ActiveRequestsScreen = ({ navigation }) => {
                                 {/* Row 3: booking chips — wraps, so nothing can overlap */}
                                 <View style={styles.chipRow}>
                                     <JobTypeBadge jobType={item.jobType} small />
+                                    <ResidenceBadge isResidenceProvided={item.isResidenceProvided} small />
                                     <SlotTimeLabel
                                         startTime={item.slotStartTime}
                                         endTime={item.slotEndTime}

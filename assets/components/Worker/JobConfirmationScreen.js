@@ -9,6 +9,7 @@ import NotificationHelper from '../Notification/NotificationHelper';
 import { SERVER_BASE } from '../../config';
 import JobTypeBadge from '../helpers/JobTypeBadge';
 import SlotTimeLabel from '../helpers/SlotTimeLabel';
+import ResidenceBadge from '../helpers/ResidenceBadge';
 
 const API_BASE = `${SERVER_BASE}/api/Dashboard`;
 
@@ -115,7 +116,7 @@ const JobConfirmationScreen = ({ navigation }) => {
     const renderJobCard = (item) => {
         const {
             id, clientId, clientName, clientImage, clientRating,
-            date, role, address, message, type, status, jobType, slotStartTime, slotEndTime
+            date, role, address, message, type, status, jobType, isResidenceProvided, slotStartTime, slotEndTime
         } = item;
         const hiringId = id;
 
@@ -248,8 +249,9 @@ const JobConfirmationScreen = ({ navigation }) => {
                     </View>
                 </View>
 
-                {/* Row 3 — the reserved window (part-time only) + current state */}
+                {/* Row 3 — the reserved window (part-time only) + residence badge + current state */}
                 <View style={styles.chipRow}>
+                    <ResidenceBadge isResidenceProvided={isResidenceProvided} small />
                     <SlotTimeLabel startTime={slotStartTime} endTime={slotEndTime} small />
                     <View style={styles.stateChip}>
                         <Text style={styles.stateChipText}>{displayStatus}</Text>
