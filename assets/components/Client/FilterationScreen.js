@@ -31,17 +31,45 @@ const FilterationScreen = ({ navigation, route }) => {
     // Key is category name, value is array of sub-skill names
     const [subFilters, setSubFilters] = useState({});
 
+    // Habits (multi-select, ids from dbo.Habits). Applied with AND logic on the
+    // server: the worker must hold every habit ticked here.
+    const [habitsCatalog, setHabitsCatalog] = useState([]);
+    const [selectedHabitIds, setSelectedHabitIds] = useState([]);
+
     // Initial load of categories
     useEffect(() => {
         fetchFilterData();
+        fetchHabits();
     }, []);
+
+    const fetchHabits = async () => {
+        try {
+            const token = await AsyncStorage.getItem('userToken');
+            const response = await fetch(`${API_BASE}/GetHabits`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const list = await response.json();
+                setHabitsCatalog(Array.isArray(list) ? list : []);
+            }
+        } catch (error) {
+            console.error('Habits load failed:', error?.message);
+        }
+    };
+
+    const toggleHabitFilter = (habitId) => {
+        setSelectedHabitIds((prev) =>
+            prev.includes(habitId) ? prev.filter((id) => id !== habitId) : [...prev, habitId]
+        );
+    };
 
     // Sync initial filters when categories are loaded or when params change
     useEffect(() => {
         if (!isLoading && route.params?.initialFilters) {
-            const { gender, city, categories, subSkills } = route.params.initialFilters;
+            const { gender, city, categories, subSkills, habits } = route.params.initialFilters;
             setSelectedGender(gender || '');
             setSelectedCity(city || '');
+            setSelectedHabitIds(Array.isArray(habits) ? habits : []);
             setSelectedSkills((categories || []).map(item => item?.toString ? item.toString() : item));
 
             if (subSkills) {
@@ -139,7 +167,8 @@ const FilterationScreen = ({ navigation, route }) => {
                 gender: selectedGender,
                 city: selectedCity,
                 categories: selectedSkills,
-                subSkills: subFilters
+                subSkills: subFilters,
+                habits: selectedHabitIds
             }
         });
     };
@@ -148,6 +177,7 @@ const FilterationScreen = ({ navigation, route }) => {
         setSelectedGender('');
         setSelectedSkills([]);
         setSelectedCity('');
+        setSelectedHabitIds([]);
         const resetSubFilters = {};
         allCategories.forEach(cat => {
             resetSubFilters[cat.categoryName] = [];
@@ -160,7 +190,8 @@ const FilterationScreen = ({ navigation, route }) => {
                 gender: '',
                 city: '',
                 categories: [],
-                subSkills: resetSubFilters
+                subSkills: resetSubFilters,
+                habits: []
             }
         });
     };
@@ -303,6 +334,47 @@ const FilterationScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
                 </View>
 
+                {/* Habits Section — the worker must hold every habit ticked here */}
+                {habitsCatalog.length > 0 && (
+                    <View style={styles.sectionCard}>
+                        <View style={styles.sectionHeader}>
+                            <Icon name="clipboard-check-outline" size={22} color="#000" />
+                            <Text style={styles.sectionTitle}>HABITS</Text>
+                        </View>
+
+                        <View style={styles.habitsWrap}>
+                            {habitsCatalog.map((habit) => {
+                                const habitId = habit.habitId ?? habit.id;
+                                const isActive = selectedHabitIds.includes(habitId);
+                                return (
+                                    <TouchableOpacity
+                                        key={habitId}
+                                        style={[styles.habitChip, isActive && styles.habitChipActive]}
+                                        onPress={() => toggleHabitFilter(habitId)}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Icon
+                                            name={isActive ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                                            size={16}
+                                            color={isActive ? '#FFF' : '#94A3B8'}
+                                        />
+                                        <Text style={[styles.habitChipText, isActive && styles.habitChipTextActive]}>
+                                            {habit.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        {selectedHabitIds.length > 0 && (
+                            <Text style={styles.habitsNote}>
+                                Workers must match all {selectedHabitIds.length} selected habit
+                                {selectedHabitIds.length > 1 ? 's' : ''}.
+                            </Text>
+                        )}
+                    </View>
+                )}
+
                 {/* Sub-Category Section (Dynamic) */}
                 {selectedSkills.length > 0 && (
                     <View style={styles.subCategoryCard}>
@@ -384,6 +456,21 @@ const styles = StyleSheet.create({
     sectionCard: { backgroundColor: '#FFF', borderRadius: 15, padding: 15, marginBottom: 15, elevation: 2, borderWidth: 1, borderColor: '#EEE' },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
     sectionTitle: { fontSize: 16, fontWeight: 'bold', marginLeft: 10, letterSpacing: 1 },
+    habitsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+    habitChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    habitChipActive: { backgroundColor: '#1E64D3', borderColor: '#1E64D3' },
+    habitChipText: { fontSize: 12.5, color: '#475569', marginLeft: 6, fontWeight: '600' },
+    habitChipTextActive: { color: '#FFFFFF', fontWeight: '800' },
+    habitsNote: { fontSize: 12, color: '#64748B', marginTop: 10 },
 
     buttonGroup: { flexDirection: 'row', justifyContent: 'space-between' },
     choiceBtn: { flex: 1, height: 40, borderRadius: 10, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#DDD', alignItems: 'center', justifyContent: 'center', marginHorizontal: 4 },

@@ -6,7 +6,9 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
-import { API_DASHBOARD } from '../../config';
+import { API_DASHBOARD, SERVER_BASE } from '../../config';
+import JobTypeBadge from '../helpers/JobTypeBadge';
+import SlotTimeLabel from '../helpers/SlotTimeLabel';
 
 const ActiveRequestsScreen = ({ navigation }) => {
     const [requests, setRequests] = useState([]);
@@ -111,22 +113,36 @@ const ActiveRequestsScreen = ({ navigation }) => {
                 ) : (
                     requests.map((item, index) => {
                         const uniqueKey = item.id ? item.id.toString() : index.toString();
+                        const ratingValue = Number(item.clientRating) || 0;
+                        const hasRating = ratingValue > 0;
+                        const avatarUri = item.clientPicture
+                            ? (item.clientPicture.startsWith('http') ? item.clientPicture : `${SERVER_BASE}${item.clientPicture}`)
+                            : null;
                         return (
                             <View key={uniqueKey} style={styles.requestCard}>
-                                {/* Top Row: Service Tag and Time */}
-                                <View style={styles.cardHeader}>
+
+                                {/* Row 1: what the request is + when it came in */}
+                                <View style={styles.cardTopRow}>
                                     <View style={styles.serviceTag}>
-                                        <Text style={styles.serviceText}>{item.service || "General Service"}</Text>
+                                        <Text style={styles.serviceText}>{item.service || 'General Service'}</Text>
                                     </View>
                                     <View style={styles.timeRow}>
                                         <View style={styles.activeDot} />
-                                        <Text style={styles.timeText}>{item.time || "Just now"}</Text>
+                                        <Text style={styles.timeText}>{item.time || 'Just now'}</Text>
                                     </View>
                                 </View>
 
-                                {/* Client Info */}
-                                <View style={styles.clientSection}>
-                                    <View style={styles.clientHeaderRow}>
+                                {/* Row 2: who is asking + their rating */}
+                                <View style={styles.clientRow}>
+                                    <View style={styles.avatarWrap}>
+                                        {avatarUri ? (
+                                            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                                        ) : (
+                                            <Icon name="account" size={26} color="#94A3B8" />
+                                        )}
+                                    </View>
+
+                                    <View style={styles.clientInfo}>
                                         <TouchableOpacity
                                             onPress={() => {
                                                 if (item.clientId) {
@@ -134,45 +150,73 @@ const ActiveRequestsScreen = ({ navigation }) => {
                                                         clientId: item.clientId,
                                                         id: item.clientId
                                                     });
-                                                } else {
-                                                    console.warn("Client ID is missing for this review.");
                                                 }
                                             }}
+                                            disabled={!item.clientId}
                                         >
-                                            <Text style={styles.clientName}>Client: {item.client || "Customer"}</Text>
+                                            <Text style={styles.clientName} numberOfLines={1}>
+                                                {item.client || 'Customer'}
+                                            </Text>
                                         </TouchableOpacity>
-
-                                        <View style={styles.ratingBadge}>
-                                            <Icon name="star" size={14} color="#FFD700" />
-                                            <Text style={styles.ratingText}>{item.clientRating > 0 ? item.clientRating.toFixed(1) : "N/A"}</Text>
-                                        </View>
+                                        <Text style={styles.clientCaption} numberOfLines={1}>
+                                            Wants to interview you
+                                        </Text>
                                     </View>
-                                    {item.location && (
-                                        <View style={styles.locationRow}>
-                                            <Icon name="map-marker" size={18} color="#E91E63" />
-                                            <Text style={styles.locationText}>{item.location}</Text>
-                                        </View>
-                                    )}
-                                    {item.clientPhone && (
-                                        <View style={[styles.locationRow, { marginTop: 5 }]}>
-                                            <Icon name="phone" size={18} color="#4CAF50" />
-                                            <Text style={styles.locationText}>{item.clientPhone}</Text>
-                                        </View>
-                                    )}
+
+                                    <View style={[styles.ratingBadge, !hasRating && styles.ratingBadgeMuted]}>
+                                        <Icon
+                                            name={hasRating ? 'star' : 'star-outline'}
+                                            size={12}
+                                            color={hasRating ? '#F59E0B' : '#94A3B8'}
+                                        />
+                                        <Text style={[styles.ratingText, !hasRating && styles.ratingTextMuted]}>
+                                            {hasRating ? ratingValue.toFixed(1) : 'New'}
+                                        </Text>
+                                    </View>
                                 </View>
 
-                                {/* Action Buttons */}
+                                {/* Row 3: booking chips — wraps, so nothing can overlap */}
+                                <View style={styles.chipRow}>
+                                    <JobTypeBadge jobType={item.jobType} small />
+                                    <SlotTimeLabel
+                                        startTime={item.slotStartTime}
+                                        endTime={item.slotEndTime}
+                                        small
+                                    />
+                                </View>
+
+                                <View style={styles.divider} />
+
+                                {/* Row 4: contact details */}
+                                <View style={styles.detailRow}>
+                                    <Icon name="map-marker-outline" size={16} color="#E91E63" />
+                                    <Text style={styles.detailText} numberOfLines={2}>
+                                        {item.location || 'Location not provided'}
+                                    </Text>
+                                </View>
+
+                                {item.clientPhone ? (
+                                    <View style={styles.detailRow}>
+                                        <Icon name="phone-outline" size={16} color="#16A34A" />
+                                        <Text style={styles.detailText}>{item.clientPhone}</Text>
+                                    </View>
+                                ) : null}
+
+                                {/* Row 5: actions */}
                                 <View style={styles.actionRow}>
                                     <TouchableOpacity
                                         style={styles.rejectBtn}
                                         onPress={() => handleStatusUpdate(item.id, 'Rejected')}
+                                        activeOpacity={0.85}
                                     >
                                         <Text style={styles.rejectText}>Reject</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={styles.acceptBtn}
                                         onPress={() => handleStatusUpdate(item.id, 'Accepted')}
+                                        activeOpacity={0.85}
                                     >
+                                        <Icon name="check" size={16} color="#FFF" />
                                         <Text style={styles.acceptText}>Accept Booking</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -244,63 +288,106 @@ const styles = StyleSheet.create({
     sectionHeading: { fontSize: 17, fontWeight: 'bold', color: '#111827', flex: 1, marginRight: 8 },
     gotoLink: { color: '#1E64D3', fontWeight: 'bold', fontSize: 14 },
 
+    /* ── Request card ── */
     requestCard: {
-        backgroundColor: '#FFF',
-        borderRadius: 20,
-        padding: 15,
-        marginBottom: 15,
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 18,
+        padding: 16,
+        marginBottom: 14,
         borderWidth: 1,
-        borderColor: '#E5E7EB'
+        borderColor: '#E8EDF5',
+        elevation: 3,
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
     },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    serviceTag: { borderColor: '#1E64D3', borderWidth: 1, paddingHorizontal: 15, paddingVertical: 4, borderRadius: 10 },
-    serviceText: { color: '#1E64D3', fontSize: 12, fontWeight: 'bold' },
-    timeRow: { flexDirection: 'row', alignItems: 'center' },
-    activeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50', marginRight: 6 },
-    timeText: { fontSize: 12, color: '#888' },
 
-    clientSection: { marginBottom: 15 },
-    clientHeaderRow: {
+    cardTopRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 6,
+        marginBottom: 14,
     },
-    clientName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#111827',
-        flex: 1,
-        marginRight: 8,
+    serviceTag: {
+        backgroundColor: '#EAF2FF',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+        flexShrink: 0,
     },
+    serviceText: { color: '#1E64D3', fontSize: 11.5, fontWeight: '800', letterSpacing: 0.2 },
+    timeRow: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, marginLeft: 10 },
+    activeDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#22C55E', marginRight: 6 },
+    timeText: { fontSize: 11.5, color: '#6B7280', fontWeight: '600' },
+
+    clientRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    avatarWrap: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: '#EAF2FF',
+        borderWidth: 1,
+        borderColor: '#DBEAFE',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    avatar: { width: 46, height: 46, borderRadius: 23 },
+    clientInfo: { flex: 1, marginLeft: 12, marginRight: 8 },
+    clientName: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
+    clientCaption: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+
     ratingBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFF9E6',
+        backgroundColor: '#FFF7E6',
+        borderWidth: 1,
+        borderColor: '#FDE3A7',
         paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#FFE599',
+        borderRadius: 10,
+        flexShrink: 0,
     },
-    ratingText: {
-        marginLeft: 3,
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#B45309',
-    },
-    locationRow: { flexDirection: 'row', alignItems: 'center' },
-    locationText: { fontSize: 14, color: '#666', marginLeft: 5 },
+    ratingBadgeMuted: { backgroundColor: '#F4F6FA', borderColor: '#E2E8F0' },
+    ratingText: { marginLeft: 3, fontSize: 12, fontWeight: '800', color: '#B45309' },
+    ratingTextMuted: { color: '#8494AB' },
 
-    actionRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    rejectBtn: { flex: 0.45, height: 45, borderRadius: 22.5, backgroundColor: '#F5F5F5', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DDD' },
-    rejectText: { color: '#666', fontWeight: 'bold' },
-    acceptBtn: { flex: 0.45, height: 45, borderRadius: 22.5, backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center' },
-    acceptText: { color: '#FFF', fontWeight: 'bold' }
+    chipRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 8,
+    },
+
+    divider: { height: 1, backgroundColor: '#EEF2F7', marginTop: 14, marginBottom: 12 },
+
+    detailRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
+    detailText: { flex: 1, fontSize: 13, color: '#4B5563', lineHeight: 18, marginLeft: 8 },
+
+    actionRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
+    rejectBtn: {
+        flex: 1,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    rejectText: { color: '#64748B', fontWeight: '700', fontSize: 13.5 },
+    acceptBtn: {
+        flex: 1.45,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#16A34A',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 1,
+    },
+    acceptText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13.5, marginLeft: 6 }
 });
 
 export default ActiveRequestsScreen;

@@ -7,6 +7,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { SERVER_BASE } from '../../config';
+import JobTypeBadge from '../helpers/JobTypeBadge';
+import SlotTimeLabel from '../helpers/SlotTimeLabel';
 
 const API_BASE = `${SERVER_BASE}/api/Dashboard`;
 
@@ -113,7 +115,7 @@ const JobConfirmationScreen = ({ navigation }) => {
     const renderJobCard = (item) => {
         const {
             id, clientId, clientName, clientImage, clientRating,
-            date, role, address, message, type, status
+            date, role, address, message, type, status, jobType, slotStartTime, slotEndTime
         } = item;
         const hiringId = id;
 
@@ -168,20 +170,45 @@ const JobConfirmationScreen = ({ navigation }) => {
                     ? 'Accepted'
                     : status || 'Pending';
 
-        // Avatar fallback URL
-        const avatarUri = clientImage && clientImage.startsWith('/')
-            ? `${SERVER_BASE}${clientImage}`
-            : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+        const ratingValue = Number(clientRating) || 0;
+        const hasRating = ratingValue > 0;
+
+        const avatarUri = clientImage
+            ? (clientImage.startsWith('http') ? clientImage : `${SERVER_BASE}${clientImage}`)
+            : null;
+
+        const detailRows = [
+            { icon: 'calendar-range', label: 'Interview Date', value: date || 'Not set' },
+            { icon: 'briefcase-outline', label: 'Job Role', value: role || 'Not set' },
+            { icon: 'tag-outline', label: 'Job Type', value: jobType || 'Full-Time' },
+            { icon: 'map-marker-outline', label: 'Address', value: address || 'Not set' },
+        ];
 
         return (
-            <View key={hiringId.toString()} style={[styles.card, { borderColor }]}>
-                <Text style={[styles.offerHeader, { color: borderColor }]}>
-                    {statusHeaderText}
-                </Text>
+            <View key={hiringId.toString()} style={styles.card}>
+                <View style={[styles.cardAccent, { backgroundColor: borderColor }]} />
 
+                {/* Row 1 — state + booking type */}
+                <View style={styles.cardTopRow}>
+                    <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
+                        <View style={[styles.statusDot, { backgroundColor: borderColor }]} />
+                        <Text style={[styles.statusPillText, { color: statusTextColor }]}>
+                            {statusHeaderText}
+                        </Text>
+                    </View>
+                    <JobTypeBadge jobType={jobType} small />
+                </View>
+
+                {/* Row 2 — who sent the offer */}
                 <View style={styles.clientRow}>
                     <View style={styles.imageContainer}>
-                        <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                        {avatarUri ? (
+                            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                        ) : (
+                            <View style={styles.avatarFallback}>
+                                <Icon name="account" size={28} color="#94A3B8" />
+                            </View>
+                        )}
                         <View style={styles.verifiedIcon}>
                             <Icon
                                 name={rejectedWorker ? 'account-cancel' : 'account-check'}
@@ -192,129 +219,110 @@ const JobConfirmationScreen = ({ navigation }) => {
                     </View>
 
                     <View style={styles.nameCol}>
-                        {/* Name and Rating Header */}
-                        <View style={styles.nameHeaderRow}>
-                            <TouchableOpacity
-                                style={{ flex: 1, marginRight: 6 }}
-                                onPress={() => {
-                                    if (clientId) {
-                                        navigation.navigate('ClientProfileScreen', { clientId: clientId, id: clientId });
-                                    } else {
-                                        console.warn("Client ID is missing for this job confirmation.");
-                                    }
-                                }}
-                            >
-                                <Text style={styles.clientName} numberOfLines={1} ellipsizeMode="tail">
-                                    {clientName || 'Client Profile'}
-                                </Text>
-                            </TouchableOpacity>
-
-                            <View style={styles.ratingBadge}>
-                                <Icon name="star" size={13} color="#FFD700" />
-                                <Text style={styles.ratingText}>
-                                    {clientRating > 0 ? clientRating.toFixed(1) : "N/A"}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Status Badge */}
-                        <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-                            <Text style={[styles.statusText, { color: statusTextColor }]}>
-                                {displayStatus}
+                        <TouchableOpacity
+                            onPress={() => {
+                                if (clientId) {
+                                    navigation.navigate('ClientProfileScreen', { clientId: clientId, id: clientId });
+                                }
+                            }}
+                            disabled={!clientId}
+                        >
+                            <Text style={styles.clientName} numberOfLines={1} ellipsizeMode="tail">
+                                {clientName || 'Client Profile'}
                             </Text>
-                        </View>
+                        </TouchableOpacity>
+                        <Text style={styles.clientCaption} numberOfLines={1}>
+                            {pendingWorker ? 'Sent you a job offer' : displayStatus}
+                        </Text>
+                    </View>
+
+                    <View style={[styles.ratingBadge, !hasRating && styles.ratingBadgeMuted]}>
+                        <Icon
+                            name={hasRating ? 'star' : 'star-outline'}
+                            size={12}
+                            color={hasRating ? '#F59E0B' : '#94A3B8'}
+                        />
+                        <Text style={[styles.ratingText, !hasRating && styles.ratingTextMuted]}>
+                            {hasRating ? ratingValue.toFixed(1) : 'New'}
+                        </Text>
                     </View>
                 </View>
-                {/* <View style={styles.clientRow}>
-                    <View style={styles.imageContainer}>
-                        <Image source={{ uri: avatarUri }} style={styles.avatar} />
-                        <View style={styles.verifiedIcon}>
-                            <Icon
-                                name={rejectedWorker ? 'account-cancel' : 'account-check'}
-                                size={12}
-                                color={statusTextColor}
-                            />
-                        </View>
-                    </View>
 
-                    <View style={styles.nameCol}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    if (clientId) {
-                                        navigation.navigate('ClientProfileScreen', {
-                                            clientId: clientId,
-                                            id: clientId
-                                        });
-                                    } else {
-                                        console.warn("Client ID is missing for this job confirmation.");
-                                    }
-                                }}
-                            >
-                                <Text style={styles.clientName}>{clientName || 'Client Profile'}</Text>
-                            </TouchableOpacity>
-                            <View style={styles.ratingBadge}>
-                                <Icon name="star" size={14} color="#FFD700" />
-                                <Text style={styles.ratingText}>{clientRating > 0 ? clientRating.toFixed(1) : "N/A"}</Text>
-                            </View>
-                        </View>
-                        <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-                            <Text style={[styles.statusText, { color: statusTextColor }]}>
-                                {displayStatus}
-                            </Text>
-                        </View>
+                {/* Row 3 — the reserved window (part-time only) + current state */}
+                <View style={styles.chipRow}>
+                    <SlotTimeLabel startTime={slotStartTime} endTime={slotEndTime} small />
+                    <View style={styles.stateChip}>
+                        <Text style={styles.stateChipText}>{displayStatus}</Text>
                     </View>
-                </View> */}
+                </View>
 
+                <View style={styles.divider} />
+
+                {/* Row 4 — the offer details */}
                 <View style={styles.detailsSection}>
-                    <Text style={styles.detailItem}>
-                        <Text style={styles.bold}>Interview Date:</Text> {date || 'N/A'}
-                    </Text>
-                    <Text style={styles.detailItem}>
-                        <Text style={styles.bold}>Job Role:</Text> {role || 'N/A'}
-                    </Text>
-                    <Text style={styles.detailItem}>
-                        <Text style={styles.bold}>Address:</Text> {address || 'N/A'}
-                    </Text>
-                    {message ? <Text style={styles.messageText}>{message}</Text> : null}
+                    {detailRows.map((row) => (
+                        <View key={row.label} style={styles.detailRow}>
+                            <View style={styles.detailIconBox}>
+                                <Icon name={row.icon} size={15} color={statusTextColor} />
+                            </View>
+                            <Text style={styles.detailLabel}>{row.label}</Text>
+                            <Text style={styles.detailValue} numberOfLines={2}>{row.value}</Text>
+                        </View>
+                    ))}
                 </View>
 
+                {/* Row 5 — the client's message */}
+                {message ? (
+                    <View style={styles.messageBox}>
+                        <Icon name="message-text-outline" size={14} color="#64748B" />
+                        <Text style={styles.messageText}>{message}</Text>
+                    </View>
+                ) : null}
+
+                {/* Row 6 — actions */}
                 <View style={styles.buttonRow}>
                     {pendingWorker && (
                         <>
                             <TouchableOpacity
                                 style={styles.rejectBtn}
                                 onPress={() => handleRejectJob(hiringId)}
+                                activeOpacity={0.85}
                             >
                                 <Text style={styles.btnTextGrey}>Reject</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={styles.acceptBtn}
                                 onPress={() => handleAcceptJob(hiringId)}
+                                activeOpacity={0.85}
                             >
+                                <Icon name="check" size={16} color="#FFF" />
                                 <Text style={styles.btnTextWhite}>Accept</Text>
                             </TouchableOpacity>
                         </>
+                    )}
+
+                    {acceptedWorker && (
+                        <View style={[styles.stateButton, styles.stateButtonAccepted]}>
+                            <Icon name="check-circle" size={16} color="#FFFFFF" />
+                            <Text style={styles.btnTextWhite}>Accepted — awaiting client</Text>
+                        </View>
+                    )}
+
+                    {finalized && (
+                        <View style={[styles.stateButton, styles.stateButtonHired]}>
+                            <Icon name="briefcase-check" size={16} color="#FFFFFF" />
+                            <Text style={styles.btnTextWhite}>Hired</Text>
+                        </View>
                     )}
 
                     {(rejectedWorker || terminated) && (
                         <TouchableOpacity
                             style={styles.deleteBtn}
                             onPress={() => handleDeleteJob(hiringId)}
+                            activeOpacity={0.85}
                         >
-                            <Text style={styles.btnTextGrey}>Delete</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {acceptedWorker && (
-                        <TouchableOpacity style={[styles.acceptBtn, { opacity: 0.6, backgroundColor: '#666' }]} disabled>
-                            <Text style={styles.btnTextWhite}>Accepted</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {finalized && (
-                        <TouchableOpacity style={[styles.acceptBtn, { backgroundColor: '#4CAF50' }]} disabled>
-                            <Text style={styles.btnTextWhite}>Hired</Text>
+                            <Icon name="trash-can-outline" size={16} color="#DC2626" />
+                            <Text style={styles.btnTextRed}>Delete</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -368,154 +376,164 @@ const JobConfirmationScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFF' },
+    container: { flex: 1, backgroundColor: '#F7FAFF' },
     blueCircle: {
         position: 'absolute', top: -50, left: -50,
         width: 200, height: 200, borderRadius: 100,
-        backgroundColor: '#E3F2FD', zIndex: -1
+        backgroundColor: '#E3F2FD', zIndex: -1,
     },
-    header: { padding: 20 },
+    header: { padding: 20, paddingBottom: 10 },
     titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
     backBtn: { padding: 5 },
-    headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#000' },
+    headerTitle: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
     searchBar: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#FFF', borderRadius: 25,
-        borderWidth: 1, borderColor: '#CCC',
-        paddingHorizontal: 15, height: 45, elevation: 2
+        borderWidth: 1, borderColor: '#E2E8F0',
+        paddingHorizontal: 15, height: 46, elevation: 2,
+        shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05, shadowRadius: 3,
     },
-    searchInput: { flex: 1, fontSize: 14, color: '#000', paddingVertical: 0 },
+    searchInput: { flex: 1, fontSize: 14, color: '#0F172A', paddingVertical: 0 },
     searchIcon: { marginRight: 10 },
 
-    scrollContent: { paddingHorizontal: 15, paddingBottom: 20 },
+    scrollContent: { paddingHorizontal: 15, paddingBottom: 30 },
+
+    /* ── Job offer card ── */
     card: {
-        backgroundColor: '#FFF', borderRadius: 15,
-        padding: 15, marginBottom: 20,
-        borderWidth: 1, elevation: 3,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2, shadowRadius: 1.41
+        backgroundColor: '#FFFFFF',
+        borderRadius: 18,
+        marginBottom: 16,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#E8EDF5',
+        elevation: 3,
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
     },
-    offerHeader: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
+    cardAccent: { height: 4, width: '100%' },
+
+    cardTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingTop: 14,
+    },
+    statusPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 9,
+    },
+    statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+    statusPillText: { fontSize: 11.5, fontWeight: '800', letterSpacing: 0.2 },
+
     clientRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginBottom: 12
-    },
-    imageContainer: {
-        position: 'relative'
-    },
-    avatar: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: '#EEE'
-    },
-    verifiedIcon: {
-        position: 'absolute',
-        bottom: -2,
-        right: -2,
-        backgroundColor: '#FFF',
-        borderRadius: 10,
-        padding: 2,
-        borderWidth: 1,
-        borderColor: '#CCC'
-    },
-    nameCol: {
-        marginLeft: 12,
-        flex: 1
-    },
-    nameHeaderRow: {
-        flexDirection: 'row',
         alignItems: 'center',
-        justify: 'space-between',
-        width: '100%',
-        marginBottom: 6
-    },
-    clientName: {
-        fontSize: 17,
-        fontWeight: 'bold',
-        color: '#000'
-    },
-    ratingBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFF9E6',
-        paddingHorizontal: 7,
-        paddingVertical: 3,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#FFE599',
-    },
-    ratingText: {
-        marginLeft: 3,
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#B45309',
-    },
-    statusBadge: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 12,
-        paddingVertical: 3,
-        borderRadius: 12,
-    },
-    statusText: {
-        fontSize: 12,
-        fontWeight: 'bold'
+        paddingHorizontal: 16,
+        paddingTop: 14,
     },
     imageContainer: { position: 'relative' },
-    avatar: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#EEE' },
+    avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#EAF2FF' },
+    avatarFallback: {
+        width: 52, height: 52, borderRadius: 26,
+        backgroundColor: '#EAF2FF',
+        alignItems: 'center', justifyContent: 'center',
+        borderWidth: 1, borderColor: '#DBEAFE',
+    },
     verifiedIcon: {
-        position: 'absolute', bottom: 0, right: 0,
+        position: 'absolute', bottom: -2, right: -2,
         backgroundColor: '#FFF', borderRadius: 10, padding: 2,
-        borderWidth: 1, borderColor: '#CCC'
+        borderWidth: 1, borderColor: '#E2E8F0',
     },
-    nameCol: { marginLeft: 15, flex: 1 },
-    clientName: { fontSize: 20, fontWeight: 'bold', color: '#000', flex: 1, marginRight: 8 },
+    nameCol: { flex: 1, marginLeft: 12, marginRight: 8 },
+    clientName: { fontSize: 16.5, fontWeight: '800', color: '#0F172A' },
+    clientCaption: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+
     ratingBadge: {
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: '#FFF7E6', paddingHorizontal: 8, paddingVertical: 4,
+        borderRadius: 10, borderWidth: 1, borderColor: '#FDE3A7', flexShrink: 0,
+    },
+    ratingBadgeMuted: { backgroundColor: '#F4F6FA', borderColor: '#E2E8F0' },
+    ratingText: { marginLeft: 3, fontSize: 12, fontWeight: '800', color: '#B45309' },
+    ratingTextMuted: { color: '#8494AB' },
+
+    chipRow: {
+        flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
+        gap: 8, paddingHorizontal: 16, paddingTop: 12,
+    },
+    stateChip: {
+        backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0',
+        paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10,
+    },
+    stateChipText: { fontSize: 10.5, fontWeight: '800', color: '#475569' },
+
+    divider: { height: 1, backgroundColor: '#EEF2F7', marginTop: 14 },
+
+    detailsSection: { paddingHorizontal: 16, paddingTop: 12 },
+    detailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    detailIconBox: {
+        width: 28, height: 28, borderRadius: 14,
+        backgroundColor: '#F1F5F9',
+        alignItems: 'center', justifyContent: 'center',
+        marginRight: 10,
+    },
+    detailLabel: { width: 105, fontSize: 12.5, color: '#8494AB', fontWeight: '600' },
+    detailValue: { flex: 1, fontSize: 13.5, color: '#1E293B', fontWeight: '700' },
+
+    messageBox: {
         flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFF9E6',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
+        backgroundColor: '#F8FAFC',
         borderWidth: 1,
-        borderColor: '#FFE599',
+        borderColor: '#E8EDF5',
+        borderRadius: 12,
+        padding: 12,
+        marginHorizontal: 16,
+        marginTop: 2,
     },
-    ratingText: {
-        marginLeft: 3,
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#B45309',
-    },
-    statusBadge: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 15, paddingVertical: 3,
-        borderRadius: 15, marginTop: 5
-    },
-    statusText: { fontSize: 13, fontWeight: 'bold' },
+    messageText: { flex: 1, fontSize: 12.5, color: '#475569', lineHeight: 18, marginLeft: 8 },
 
-    detailsSection: { marginBottom: 15 },
-    detailItem: { fontSize: 15, color: '#333', marginBottom: 4 },
-    bold: { fontWeight: 'bold' },
-    messageText: { fontSize: 14, color: '#444', lineHeight: 20, marginTop: 5 },
-
-    buttonRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
+    buttonRow: {
+        flexDirection: 'row',
+        gap: 10,
+        paddingHorizontal: 16,
+        paddingTop: 14,
+        paddingBottom: 16,
+    },
     rejectBtn: {
-        backgroundColor: '#CFD8DC', paddingHorizontal: 30,
-        paddingVertical: 10, borderRadius: 20, marginRight: 15, elevation: 2
+        flex: 1, height: 44, borderRadius: 12,
+        backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0',
+        alignItems: 'center', justifyContent: 'center',
     },
     acceptBtn: {
-        backgroundColor: '#1E64D3', paddingHorizontal: 30,
-        paddingVertical: 10, borderRadius: 20, elevation: 2
+        flex: 1, height: 44, borderRadius: 12,
+        backgroundColor: '#1E64D3',
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        elevation: 1,
     },
     deleteBtn: {
-        backgroundColor: '#CFD8DC', paddingHorizontal: 30,
-        paddingVertical: 10, borderRadius: 20, elevation: 2
+        flex: 1, height: 44, borderRadius: 12,
+        backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA',
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     },
-    btnTextWhite: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-    btnTextGrey: { color: '#607D8B', fontWeight: 'bold', fontSize: 16 },
+    stateButton: {
+        flex: 1, height: 44, borderRadius: 12,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    },
+    stateButtonAccepted: { backgroundColor: '#16A34A' },
+    stateButtonHired: { backgroundColor: '#0F766E' },
 
-    emptyText: { textAlign: 'center', marginTop: 40, fontStyle: 'italic', color: '#999' },
+    btnTextWhite: { color: '#FFF', fontWeight: '800', fontSize: 13.5, marginLeft: 6 },
+    btnTextGrey: { color: '#64748B', fontWeight: '800', fontSize: 13.5 },
+    btnTextRed: { color: '#DC2626', fontWeight: '800', fontSize: 13.5, marginLeft: 6 },
+
+    emptyText: { textAlign: 'center', marginTop: 40, fontStyle: 'italic', color: '#94A3B8' },
 });
 
 export default JobConfirmationScreen;

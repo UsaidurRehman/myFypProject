@@ -7,6 +7,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { API_DASHBOARD, SERVER_BASE } from '../../config';
+import JobTypeBadge from '../helpers/JobTypeBadge';
+import SlotTimeLabel from '../helpers/SlotTimeLabel';
 
 const API_BASE = API_DASHBOARD;
 
@@ -150,6 +152,8 @@ const WorkerDecisionScreen = ({ navigation }) => {
                                     </View>
                                     <View style={styles.nameBlock}>
                                         <Text style={styles.workerName}>{item.workerName}</Text>
+                                        <JobTypeBadge jobType={item.jobType} small style={styles.jobTypeBadge} />
+<SlotTimeLabel startTime={item.slotStartTime} endTime={item.slotEndTime} small style={styles.slotTimeLabel} />
                                         <View style={[
                                             styles.statusBadge,
                                             isAccepted ? styles.badgeAccepted : isRejected ? styles.badgeRejected : styles.badgePending
@@ -235,6 +239,8 @@ const WorkerDecisionScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+    slotTimeLabel: { marginTop: 4 },
+    jobTypeBadge: { marginTop: 4 },
     container: {
         flex: 1,
         backgroundColor: '#F3F6FC',

@@ -30,6 +30,9 @@ const WorkerTerminationScreen = ({ navigation }) => {
             if (response.ok) {
                 const data = await response.json();
                 setTermination(data);
+                // The backend now reports whether this worker already rated the
+                // client for this contract, so the star form stays hidden.
+                setReviewSubmitted(!!data.workerReviewSubmitted);
             }
         } catch (error) {
             console.error("Error fetching termination status:", error);
@@ -63,7 +66,12 @@ const WorkerTerminationScreen = ({ navigation }) => {
                 Alert.alert("Success", "Your review has been submitted successfully!");
                 setReviewSubmitted(true);
             } else {
-                Alert.alert("Error", "Failed to submit review.");
+                let msg = "Failed to submit review.";
+                try {
+                    const errJson = await response.json();
+                    if (errJson && errJson.message) msg = errJson.message;
+                } catch (e) { /* non-JSON body — keep the default message */ }
+                Alert.alert("Review", msg);
             }
         } catch (e) {
             console.error(e);

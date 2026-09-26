@@ -10,18 +10,30 @@ import { API_DASHBOARD, SERVER_BASE } from '../../config';
 import NotificationHelper from '../Notification/NotificationHelper';
 
 const ResignationScreen = ({ route, navigation }) => {
-    const { resignationId } = route.params;
+    const { resignationId } = route.params || {};
     const [isLoading, setIsLoading] = useState(true);
     const [data, setData] = useState(null);
     const [rating, setRating] = useState(3);
     const [remarks, setRemarks] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const isConfirmed = data?.isConfirmed;
+    // "Confirmed" now means the CLIENT has confirmed + reviewed this contract.
+    // (The API used to answer this off ANY review row for the interview, so the
+    // worker's own review — written while resigning — locked this whole screen.)
+    const isConfirmed = data?.isConfirmed === true;
+
+    // Before confirming the stars are the client's input; afterwards they show the
+    // rating that was actually stored.
+    const shownRating = isConfirmed ? (data?.clientReview?.rating ?? 0) : rating;
 
     useEffect(() => {
+        if (!resignationId) {
+            NotificationHelper.showError("This resignation could not be opened.");
+            navigation.goBack();
+            return;
+        }
         fetchResignationDetail();
-    }, []);
+    }, [resignationId]);
 
     const fetchResignationDetail = async () => {
         try {
@@ -67,8 +79,9 @@ const ResignationScreen = ({ route, navigation }) => {
             });
 
             if (response.ok) {
-                NotificationHelper.showSuccess("Resignation successfully confirmed.");
-                navigation.navigate('UserDashboardScreen');
+                NotificationHelper.showSuccess("Resignation confirmed. Your review of the worker was saved.");
+                // Back to the list, which refetches on focus — the row moves to Completed.
+                navigation.navigate('ResignationsScreen');
             } else {
                 const err = await response.json();
                 NotificationHelper.showError(err.message || "Failed to confirm.");
@@ -81,30 +94,33 @@ const ResignationScreen = ({ route, navigation }) => {
         }
     };
 
-    const renderStars = () => {
-        return (
-            <View style={styles.starRow}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                    isConfirmed ? (
+    const renderStars = (size = 30) => (
+        <View style={styles.starRow}>
+            {[1, 2, 3, 4, 5].map((star) => (
+                isConfirmed ? (
+                    <Icon
+                        key={star}
+                        name={star <= shownRating ? 'star' : 'star-outline'}
+                        size={size}
+                        color={star <= shownRating ? '#FFC107' : '#D0D5DD'}
+                    />
+                ) : (
+                    <TouchableOpacity
+                        key={star}
+                        onPress={() => setRating(star)}
+                        activeOpacity={0.7}
+                        style={styles.starTap}
+                    >
                         <Icon
-                            key={star}
-                            name={star <= rating ? "star" : "star-outline"}
-                            size={20}
-                            color={star <= rating ? "#FFD700" : "#666"}
+                            name={star <= shownRating ? 'star' : 'star-outline'}
+                            size={size}
+                            color={star <= shownRating ? '#FFC107' : '#D0D5DD'}
                         />
-                    ) : (
-                        <TouchableOpacity key={star} onPress={() => setRating(star)}>
-                            <Icon
-                                name={star <= rating ? "star" : "star-outline"}
-                                size={20}
-                                color={star <= rating ? "#FFD700" : "#666"}
-                            />
-                        </TouchableOpacity>
-                    )
-                ))}
-            </View>
-        );
-    };
+                    </TouchableOpacity>
+                )
+            ))}
+        </View>
+    );
 
     if (isLoading) {
         return (
@@ -120,19 +136,19 @@ const ResignationScreen = ({ route, navigation }) => {
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="dark-content" />
 
-            {/* Header */}
+            {/* ── Header ── */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backCircle}>
-                    <Icon name="arrow-left" size={20} color="#666" />
+                    <Icon name="arrow-left" size={20} color="#374151" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Resignation</Text>
-                <Image source={{ uri: 'https://servantmaidonline.com/logo.png' }} style={styles.logo} />
+                <Image source={require('../../images/logo.png')} style={styles.logo} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-                {/* Profile Header */}
-                <View style={styles.profileRow}>
+                {/* ── Who is resigning ── */}
+                <View style={styles.profileCard}>
                     <Image
                         source={{
                             uri: data.workerAvatar && data.workerAvatar.startsWith('/')
@@ -142,84 +158,181 @@ const ResignationScreen = ({ route, navigation }) => {
                         style={styles.avatar}
                     />
                     <View style={styles.profileText}>
-                        <Text style={styles.workerName}>{data.workerName}</Text>
-                        <Text style={styles.workerRole}>{data.workerRole}</Text>
-                    </View>
-                </View>
-
-                {/* Notice Period Card */}
-                <View style={styles.noticeCard}>
-                    <View style={styles.noticeBlueHeader}>
-                        <Text style={styles.noticeHeaderTitle}>Official Notice Period</Text>
-                        <Text style={styles.noticeHeaderDays}>{data.totalNoticeDays} Days Total</Text>
-                    </View>
-                    <View style={styles.noticeBody}>
-                        <Text style={styles.noticeStatusLabel}>Notice Period Status</Text>
-                        <Text style={styles.remainingText}>Remaining Days: <Text style={styles.boldBlue}>{data.remainingDays}</Text></Text>
-
-                        <View style={styles.progressBarContainer}>
-                            <View style={[styles.progressBarFill, { width: `${data.progress * 100}%` }]} />
+                        <Text style={styles.workerName} numberOfLines={1}>{data.workerName}</Text>
+                        <View style={styles.roleChip}>
+                            <Icon name="briefcase-outline" size={12} color="#1E64D3" />
+                            <Text style={styles.workerRole} numberOfLines={1}>{data.workerRole}</Text>
                         </View>
                     </View>
                 </View>
 
-                {/* Last Working Day Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Last Working Day</Text>
-                    <View style={styles.readonlyBox}>
-                        <Text style={styles.readonlyText}>{data.lastWorkingDate}</Text>
+                {/* ── Notice period ── */}
+                <View style={styles.noticeCard}>
+                    <View style={styles.noticeBlueHeader}>
+                        <View>
+                            <Text style={styles.noticeHeaderLabel}>Official Notice Period</Text>
+                            <Text style={styles.noticeHeaderDays}>{data.totalNoticeDays} Days Total</Text>
+                        </View>
+                        <View style={styles.noticeBadge}>
+                            <Text style={styles.noticeBadgeText}>{data.remainingDays} left</Text>
+                        </View>
                     </View>
-                </View>
-
-                {/* Reason Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Reason for Leaving</Text>
-                    <View style={styles.reasonBox}>
-                        <Text style={styles.readonlyText}>{data.reason}</Text>
-                    </View>
-                </View>
-
-                {/* Remarks & Rating Section */}
-                <View style={styles.remarksCard}>
-                    <View style={styles.remarksHeader}>
-                        {renderStars()}
-                    </View>
-                    <View style={styles.remarksInputContainer}>
-                        {isConfirmed ? (
-                            <Text style={styles.confirmedText}>
-                                This resignation has already been confirmed and is now readonly.
+                    <View style={styles.noticeBody}>
+                        <View style={styles.noticeStatusRow}>
+                            <Text style={styles.noticeStatusLabel}>Notice Period Status</Text>
+                            <Text style={styles.remainingText}>
+                                Remaining Days: <Text style={styles.boldBlue}>{data.remainingDays}</Text>
                             </Text>
-                        ) : (
+                        </View>
+                        <View style={styles.progressBarContainer}>
+                            <View style={[styles.progressBarFill, { width: `${Math.min(Math.max(data.progress * 100, 0), 100)}%` }]} />
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── Dates & reason ── */}
+                <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                        <View style={styles.infoIconBox}>
+                            <Icon name="calendar-check-outline" size={16} color="#1E64D3" />
+                        </View>
+                        <View style={styles.infoTextCol}>
+                            <Text style={styles.infoLabel}>Last Working Day</Text>
+                            <Text style={styles.infoValue}>{data.lastWorkingDate}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    <View style={styles.infoRow}>
+                        <View style={styles.infoIconBox}>
+                            <Icon name="text-box-outline" size={16} color="#1E64D3" />
+                        </View>
+                        <View style={styles.infoTextCol}>
+                            <Text style={styles.infoLabel}>Reason for Leaving</Text>
+                            <Text style={styles.infoValueReason}>{data.reason}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── What the worker said about you ── */}
+                {data.workerReview ? (
+                    <View style={styles.workerReviewCard}>
+                        <View style={styles.workerReviewHeader}>
+                            <View style={styles.workerReviewIconBox}>
+                                <Icon name="comment-quote-outline" size={14} color="#1E64D3" />
+                            </View>
+                            <Text style={styles.workerReviewTitle} numberOfLines={1}>
+                                {data.workerName}&apos;s review of you
+                            </Text>
+                        </View>
+
+                        <View style={styles.reviewMetaRow}>
+                            {renderStars(16)}
+                            <Text style={styles.reviewRatingText}>
+                                {Number(data.workerReview.rating || 0).toFixed(1)}
+                            </Text>
+                            <Text style={styles.reviewMetaDate}>· {data.workerReview.date}</Text>
+                        </View>
+
+                        {data.workerReview.comment ? (
+                            <Text style={styles.reviewCommentQuoted}>
+                                &quot;{data.workerReview.comment}&quot;
+                            </Text>
+                        ) : null}
+
+                        {data.workerReview.workedPeriod ? (
+                            <View style={styles.workedRow}>
+                                <Icon name="briefcase-outline" size={12} color="#1E64D3" />
+                                <Text style={styles.workedText}>Worked: {data.workerReview.workedPeriod}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                ) : null}
+
+                {/* ── Your review ── */}
+                <View style={styles.reviewCard}>
+                    <View style={styles.reviewTopRow}>
+                        <Text style={styles.reviewCardTitle}>Your Review</Text>
+                        {isConfirmed ? (
+                            <View style={styles.savedChip}>
+                                <Icon name="check-circle" size={12} color="#15803D" />
+                                <Text style={styles.savedChipText}>Saved</Text>
+                            </View>
+                        ) : null}
+                    </View>
+
+                    {isConfirmed ? (
+                        <View>
+                            <View style={styles.reviewMetaRow}>
+                                {renderStars(18)}
+                                <Text style={styles.reviewRatingText}>
+                                    {Number(shownRating || 0).toFixed(1)}
+                                </Text>
+                                {data.clientReview?.date ? (
+                                    <Text style={styles.reviewMetaDate}>· {data.clientReview.date}</Text>
+                                ) : null}
+                            </View>
+
+                            {data.clientReview?.comment ? (
+                                <Text style={styles.reviewCommentQuoted}>
+                                    &quot;{data.clientReview.comment}&quot;
+                                </Text>
+                            ) : null}
+
+                            <View style={styles.lockNote}>
+                                <Icon name="lock-outline" size={13} color="#15803D" />
+                                <Text style={styles.lockNoteText}>
+                                    You confirmed this resignation
+                                    {data.clientReview?.date ? ` on ${data.clientReview.date}` : ''}.
+                                    Your rating of {data.workerName} is saved and can no longer be changed.
+                                </Text>
+                            </View>
+                        </View>
+                    ) : (
+                        <View>
+                            <Text style={styles.reviewHint}>
+                                Tap a star to rate {data.workerName}, then write your remarks.
+                            </Text>
+
+                            <View style={styles.reviewMetaRow}>{renderStars(30)}</View>
+
                             <TextInput
                                 style={styles.remarksInput}
                                 placeholder="Enter your remarks here"
-                                placeholderTextColor="#999"
+                                placeholderTextColor="#9CA3AF"
                                 value={remarks}
                                 onChangeText={setRemarks}
-                                editable={!isConfirmed}
+                                multiline
+                                textAlignVertical="top"
                             />
-                        )}
-                    </View>
+                        </View>
+                    )}
                 </View>
 
-                {/* Confirm Button */}
-                <TouchableOpacity
-                    style={[
-                        styles.confirmBtn,
-                        isConfirmed && styles.confirmBtnDisabled,
-                        isSubmitting && { opacity: 0.7 }
-                    ]}
-                    onPress={handleConfirmResignation}
-                    disabled={isSubmitting || isConfirmed}
-                >
-                    {isSubmitting ? (
-                        <ActivityIndicator color="#FFF" />
-                    ) : (
-                        <Text style={styles.confirmBtnText}>
-                            {isConfirmed ? 'Resignation Confirmed' : 'Confirm Resignation'}
-                        </Text>
-                    )}
-                </TouchableOpacity>
+                {/* ── Action ── */}
+                {isConfirmed ? (
+                    <View style={styles.confirmedBtnLocked}>
+                        <Icon name="check-circle" size={19} color="#15803D" />
+                        <Text style={styles.confirmedBtnLockedText}>Resignation Confirmed</Text>
+                    </View>
+                ) : (
+                    <TouchableOpacity
+                        style={[styles.confirmBtn, isSubmitting && styles.confirmBtnBusy]}
+                        onPress={handleConfirmResignation}
+                        disabled={isSubmitting}
+                        activeOpacity={0.85}
+                    >
+                        {isSubmitting ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <View style={styles.confirmBtnInner}>
+                                <Icon name="check-circle-outline" size={20} color="#FFF" />
+                                <Text style={styles.confirmBtnText}>Confirm Resignation</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                )}
 
             </ScrollView>
         </SafeAreaView>
@@ -227,121 +340,241 @@ const ResignationScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFF' },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    container: { flex: 1, backgroundColor: '#F6F8FC' },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F6F8FC' },
+
+    /* ── Header ── */
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 15
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEF1F6'
     },
     backCircle: {
-        width: 35,
-        height: 35,
-        borderRadius: 17.5,
-        backgroundColor: '#F0F0F0',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#F1F5F9',
         alignItems: 'center',
         justifyContent: 'center'
     },
-    headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center', marginLeft: -20 },
+    headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontWeight: '800', color: '#111827', letterSpacing: -0.3 },
     logo: { width: 40, height: 40 },
 
-    scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 36 },
 
-    profileRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
-    avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#EEE' },
-    profileText: { marginLeft: 15 },
-    workerName: { fontSize: 24, fontWeight: 'bold', color: '#000' },
-    workerRole: { fontSize: 18, fontWeight: 'bold', color: '#5B4CF2' },
-
-    noticeCard: {
-        backgroundColor: '#FFF',
-        borderRadius: 15,
+    /* ── Worker ── */
+    profileCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#DDD',
-        overflow: 'hidden',
-        marginBottom: 20,
-        elevation: 2
+        borderColor: '#E6EAF2',
+        padding: 14,
+        marginBottom: 14
     },
-    noticeBlueHeader: { backgroundColor: '#6289F4', padding: 15 },
-    noticeHeaderTitle: { color: '#FFF', fontSize: 18, fontWeight: '500' },
-    noticeHeaderDays: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
-    noticeBody: { padding: 15 },
-    noticeStatusLabel: { fontSize: 18, fontWeight: 'bold', color: '#000' },
-    remainingText: { fontSize: 16, color: '#666', marginTop: 5 },
-    boldBlue: { color: '#5B4CF2', fontWeight: 'bold' },
+    avatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#EEF1F6' },
+    profileText: { flex: 1, marginLeft: 14 },
+    workerName: { fontSize: 19, fontWeight: '800', color: '#111827' },
+    roleChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        backgroundColor: '#EEF4FF',
+        borderRadius: 20,
+        paddingHorizontal: 9,
+        paddingVertical: 3,
+        marginTop: 6
+    },
+    workerRole: { fontSize: 12, fontWeight: '700', color: '#1E64D3', marginLeft: 5 },
+
+    /* ── Notice period ── */
+    noticeCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#E6EAF2',
+        overflow: 'hidden',
+        marginBottom: 14
+    },
+    noticeBlueHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#4F7BF0',
+        paddingHorizontal: 16,
+        paddingVertical: 14
+    },
+    noticeHeaderLabel: { color: '#DCE6FF', fontSize: 13, fontWeight: '600' },
+    noticeHeaderDays: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginTop: 2 },
+    noticeBadge: {
+        backgroundColor: 'rgba(255,255,255,0.22)',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 6
+    },
+    noticeBadgeText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+    noticeBody: { padding: 16 },
+    noticeStatusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    noticeStatusLabel: { fontSize: 15, fontWeight: '800', color: '#111827' },
+    remainingText: { fontSize: 13, color: '#6B7280' },
+    boldBlue: { color: '#1E64D3', fontWeight: '800' },
     progressBarContainer: {
-        height: 6,
-        backgroundColor: '#EEE',
-        borderRadius: 3,
-        marginTop: 15,
+        height: 7,
+        backgroundColor: '#EEF1F6',
+        borderRadius: 4,
+        marginTop: 14,
         overflow: 'hidden',
         width: '100%'
     },
-    progressBarFill: { height: '100%', backgroundColor: '#6289F4' },
+    progressBarFill: { height: '100%', backgroundColor: '#4F7BF0', borderRadius: 4 },
 
-    section: { marginBottom: 20 },
-    sectionTitle: { fontSize: 22, fontWeight: 'bold', color: '#000', marginBottom: 10 },
-    readonlyBox: {
+    /* ── Info card (dates + reason) ── */
+    infoCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#CCC',
-        borderRadius: 10,
-        padding: 12,
-        backgroundColor: '#FFF'
+        borderColor: '#E6EAF2',
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        marginBottom: 14
     },
-    reasonBox: {
-        borderWidth: 1,
-        borderColor: '#CCC',
-        borderRadius: 10,
-        padding: 12,
-        backgroundColor: '#FFF',
-        minHeight: 100
+    infoRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12 },
+    infoIconBox: {
+        width: 30,
+        height: 30,
+        borderRadius: 9,
+        backgroundColor: '#EEF4FF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12
     },
-    readonlyText: { fontSize: 16, color: '#666' },
+    infoTextCol: { flex: 1 },
+    infoLabel: {
+        fontSize: 11,
+        color: '#9CA3AF',
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        marginBottom: 3
+    },
+    infoValue: { fontSize: 15, color: '#1F2937', fontWeight: '600' },
+    infoValueReason: { fontSize: 14, color: '#374151', lineHeight: 21 },
+    divider: { height: 1, backgroundColor: '#F1F5F9' },
 
-    remarksCard: {
+    /* ── Review blocks ── */
+    workerReviewCard: {
+        backgroundColor: '#F7FAFF',
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#CCC',
-        borderRadius: 15,
-        padding: 10,
-        marginBottom: 30
+        borderColor: '#D6E4FF',
+        padding: 14,
+        marginBottom: 14
     },
-    remarksHeader: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 5 },
-    starRow: { flexDirection: 'row' },
-    remarksInputContainer: {
+    workerReviewHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    workerReviewIconBox: {
+        width: 26,
+        height: 26,
+        borderRadius: 8,
+        backgroundColor: '#E4EEFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8
+    },
+    workerReviewTitle: { flex: 1, fontSize: 14, fontWeight: '800', color: '#1F2937' },
+
+    reviewCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#E6EAF2',
+        padding: 14,
+        marginBottom: 18
+    },
+    reviewTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    reviewCardTitle: { fontSize: 15, fontWeight: '800', color: '#111827' },
+    savedChip: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: '#ECFDF3',
         borderWidth: 1,
-        borderColor: '#CCC',
+        borderColor: '#BBF7D0',
         borderRadius: 20,
-        paddingHorizontal: 15,
-        height: 45
+        paddingHorizontal: 9,
+        paddingVertical: 3
     },
-    remarksInput: { flex: 1, fontSize: 14, color: '#000' },
-    submitSmallBtn: {
-        backgroundColor: '#1E64D3',
-        paddingHorizontal: 20,
-        height: 30,
-        borderRadius: 15,
-        justifyContent: 'center',
-        elevation: 3
-    },
-    submitBtnText: { color: '#FFF', fontSize: 13, fontWeight: 'bold' },
+    savedChipText: { fontSize: 11, fontWeight: '800', color: '#15803D', marginLeft: 4 },
 
-    confirmBtn: {
-        backgroundColor: '#008000',
-        height: 55,
+    reviewHint: { fontSize: 13, color: '#6B7280', marginTop: 6, marginBottom: 10 },
+    reviewMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, flexWrap: 'wrap' },
+    starRow: { flexDirection: 'row', alignItems: 'center' },
+    starTap: { paddingRight: 6 },
+    reviewRatingText: { fontSize: 14, fontWeight: '800', color: '#1F2937', marginLeft: 8 },
+    reviewMetaDate: { fontSize: 12, color: '#94A3B8', marginLeft: 4 },
+    reviewCommentQuoted: {
+        fontSize: 14,
+        color: '#334155',
+        fontStyle: 'italic',
+        lineHeight: 20,
+        marginTop: 10
+    },
+
+    remarksInput: {
+        minHeight: 84,
+        borderWidth: 1,
+        borderColor: '#DDE3EC',
+        borderRadius: 12,
+        paddingHorizontal: 14,
+        paddingTop: 12,
+        paddingBottom: 12,
+        fontSize: 14,
+        color: '#111827',
+        backgroundColor: '#FBFCFF',
+        marginTop: 12,
+        textAlignVertical: 'top'
+    },
+
+    lockNote: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        backgroundColor: '#F2FBF5',
         borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 9,
+        marginTop: 12
+    },
+    lockNoteText: { flex: 1, fontSize: 12.5, color: '#166534', lineHeight: 18, marginLeft: 7 },
+
+    workedRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+    workedText: { fontSize: 12, color: '#1E64D3', fontWeight: '700', marginLeft: 5 },
+
+    /* ── Action ── */
+    confirmBtn: {
+        backgroundColor: '#16A34A',
+        height: 54,
+        borderRadius: 14,
         justifyContent: 'center',
+        alignItems: 'center'
+    },
+    confirmBtnBusy: { opacity: 0.7 },
+    confirmBtnInner: { flexDirection: 'row', alignItems: 'center' },
+    confirmBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', marginLeft: 8 },
+    confirmedBtnLocked: {
+        flexDirection: 'row',
         alignItems: 'center',
-        elevation: 5
+        justifyContent: 'center',
+        height: 54,
+        borderRadius: 14,
+        backgroundColor: '#E9F9EF',
+        borderWidth: 1,
+        borderColor: '#A7E0BC'
     },
-    confirmBtnDisabled: {
-        backgroundColor: '#B0BEC5'
-    },
-    confirmBtnText: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
-    confirmedText: { fontSize: 15, color: '#2E7D32', lineHeight: 22, marginLeft: 10 }
+    confirmedBtnLockedText: { color: '#15803D', fontSize: 17, fontWeight: '800', marginLeft: 8 }
 });
 
 export default ResignationScreen;

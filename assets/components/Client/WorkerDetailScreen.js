@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     StyleSheet, View, Text, Image, ScrollView,
     TouchableOpacity, SafeAreaView, StatusBar, ActivityIndicator, Dimensions
@@ -20,15 +20,25 @@ const WorkerDetailScreen = ({ navigation, route }) => {
     const horizontalScrollRef = useRef(null);
 
     // Compute dynamic tabs array
-    const tabs = worker?.isPartTimeAvailable
-        ? ['Overview', 'Experience', 'Reviews', 'Time Slots']
-        : ['Overview', 'Experience', 'Reviews'];
+    const tabs = [
+        'Overview',
+        'Experience',
+        'Reviews',
+        // Conditional pages stay at the END so the pager indexes always line up.
+        ...(worker?.isPartTimeAvailable ? ['Time Slots'] : []),
+        ...(worker?.habits && worker.habits.length > 0 ? ['Habits'] : []),
+    ];
 
+    // Refetch when the screen regains focus, so after booking (or after the worker
+    // changes something) the footer button no longer shows a stale state.
     useEffect(() => {
-        fetchWorkerDetails();
-    }, [workerId]);
+        const unsubscribe = navigation.addListener('focus', () => {
+            fetchWorkerDetails();
+        });
+        return unsubscribe;
+    }, [navigation, fetchWorkerDetails]);
 
-    const fetchWorkerDetails = async () => {
+    const fetchWorkerDetails = useCallback(async () => {
         setIsLoading(true);
         try {
             const token = await AsyncStorage.getItem('userToken');
@@ -51,6 +61,29 @@ const WorkerDetailScreen = ({ navigation, route }) => {
         } finally {
             setIsLoading(false);
         }
+    }, [workerId, navigation]);
+
+    const callLockRef = useRef(false);
+
+    // Opens the interview booking screen. The lock makes a double tap harmless and the
+    // guard means a tap that arrives before the worker payload exists cannot push a
+    // screen without a workerId (which used to land the client back on the dashboard).
+    const handleCallForInterview = () => {
+        if (callLockRef.current) return;
+
+        const id = worker?.id || route.params?.workerId;
+        if (!id) {
+            NotificationHelper.showError('Worker details are still loading. Please try again.');
+            return;
+        }
+
+        callLockRef.current = true;
+        setTimeout(() => { callLockRef.current = false; }, 800);
+
+        navigation.navigate('InterviewSelectionScreen', {
+            workerId: id,
+            workerName: worker?.name || 'this worker',
+        });
     };
 
     const handleTabPress = (index) => {
@@ -299,6 +332,7 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                                 rating={rev.rating}
                                 text={rev.comment}
                                 date={rev.date}
+                                workedPeriod={rev.workedPeriod}
                                 onNamePress={() => {
                                     if (rev.clientId) {
                                         navigation.navigate('ClientProfileScreen', {
@@ -344,6 +378,33 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                         <View style={{ height: 100 }} />
                     </ScrollView>
                 )}
+
+                {/* ── HABITS TAB (RENDERED CONDITIONALLY) ── */}
+                {worker.habits && worker.habits.length > 0 && (
+                    <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                        <Text style={styles.sectionTitle}>Habits</Text>
+                        <Text style={styles.habitsSubtitle}>
+                            Declared by the worker — worth knowing before they work in your home.
+                        </Text>
+
+                        <View style={styles.habitsGrid}>
+                            {worker.habits.map((habit) => (
+                                <View key={habit.id ?? habit.name} style={styles.habitChip}>
+                                    <Icon name="check-circle-outline" size={15} color="#1E64D3" />
+                                    <Text style={styles.habitChipText}>{habit.name}</Text>
+                                </View>
+                            ))}
+                        </View>
+
+                        <Text style={styles.sectionTitle}>Looking for something specific?</Text>
+                        <Text style={styles.habitsSubtitle}>
+                            The filter on the search screen lets you show only workers who match the
+                            habits you need — for example a non-smoker who is comfortable with pets.
+                        </Text>
+
+                        <View style={{ height: 100 }} />
+                    </ScrollView>
+                )}
             </ScrollView>
 
             {/* Bottom Sticky Action Footer */}
@@ -354,10 +415,7 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                         (worker.hasActiveInterview || worker.availability === "NOT AVAILABLE") && styles.disabledBtn
                     ]}
                     disabled={worker.hasActiveInterview || worker.availability === "NOT AVAILABLE"}
-                    onPress={() => navigation.navigate('InterviewSelectionScreen', {
-                        workerId: worker.id,
-                        workerName: worker.name
-                    })}
+                    onPress={handleCallForInterview}
                 >
                     <Text style={styles.callBtnText}>
                         {['finalized', 'hired', 'accepted'].includes((worker.activeInterviewStatus || '').toString().toLowerCase())
@@ -401,7 +459,7 @@ const ExperienceItem = ({ title, period, bullets, isActive }) => (
     </View>
 );
 
-const ReviewCard = ({ name, rating, date, text, onNamePress }) => (
+const ReviewCard = ({ name, rating, date, text, workedPeriod, onNamePress }) => (
     <View style={styles.reviewCard}>
         <View style={styles.rowBetween}>
             <TouchableOpacity onPress={onNamePress}>
@@ -419,6 +477,12 @@ const ReviewCard = ({ name, rating, date, text, onNamePress }) => (
             </View>
         </View>
         <Text style={styles.reviewDuration}>{date}</Text>
+        {workedPeriod ? (
+            <View style={styles.reviewWorkedRow}>
+                <Icon name="briefcase-outline" size={11} color="#1E64D3" />
+                <Text style={styles.reviewWorkedText}>Worked: {workedPeriod}</Text>
+            </View>
+        ) : null}
         <Text style={styles.reviewText}>"{text}"</Text>
     </View>
 );
@@ -552,9 +616,24 @@ const styles = StyleSheet.create({
     starsRow: { flexDirection: 'row' },
     totalReviewsSubText: { fontSize: 11, color: '#64748B', marginTop: 2 },
     reviewCard: { backgroundColor: '#FFF', borderRadius: 8, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+    habitsSubtitle: { fontSize: 12.5, color: '#64748B', marginBottom: 14, lineHeight: 18 },
+    habitsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+    habitChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#EEF4FF',
+        borderWidth: 1,
+        borderColor: '#D8E6FF',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    habitChipText: { fontSize: 12.5, fontWeight: '700', color: '#1E293B', marginLeft: 6 },
     reviewName: { fontWeight: '700', fontSize: 12, color: '#0F172A' },
     reviewDuration: { fontSize: 10, color: '#94A3B8', marginVertical: 2 },
     reviewText: { fontSize: 12, color: '#334155', fontStyle: 'italic' },
+    reviewWorkedRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
+    reviewWorkedText: { fontSize: 10, color: '#1E64D3', fontWeight: '600', marginLeft: 4 },
     emptyReviewBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 20 },
 
     slotCard: {

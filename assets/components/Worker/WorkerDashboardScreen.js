@@ -570,6 +570,19 @@ const WorkerDashboardScreen = ({ navigation }) => {
                             Check Termination Status {worker.terminationCount > 0 ? `(${worker.terminationCount})` : ''}
                         </Text>
                     </TouchableOpacity>
+
+                    {/* Habits — shown on the worker's own profile to clients */}
+                    <TouchableOpacity
+                        style={styles.habitsBtn}
+                        onPress={() => navigation.navigate('MyHabitsScreen')}
+                        activeOpacity={0.85}
+                    >
+                        <Icon name="clipboard-check-outline" size={18} color="#1E64D3" />
+                        <Text style={styles.habitsBtnText}>
+                            My Habits{worker.habits?.length ? ` (${worker.habits.length})` : ''}
+                        </Text>
+                        <Icon name="chevron-right" size={18} color="#94A3B8" />
+                    </TouchableOpacity>
                 </ScrollView>
 
                 {/* 2. TIME SLOTS TAB */}
@@ -671,7 +684,7 @@ const WorkerDashboardScreen = ({ navigation }) => {
                                                 <View>
                                                     <Text style={styles.clientNameText}>{reviewerName}</Text>
                                                     <Text style={styles.reviewDateText}>
-                                                        {item.duration ? `${item.date || 'Recent'} · ${item.duration}` : (item.date || 'Recent')}
+                                                        {item.workedPeriod ? `Worked: ${item.workedPeriod}` : (item.date || 'Recent')}
                                                     </Text>
                                                 </View>
                                             </View>
@@ -921,6 +934,8 @@ const styles = StyleSheet.create({
     terminateBtn: { backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 42, borderRadius: 21, borderWidth: 1, borderColor: '#FF4D4D' },
     terminateText: { color: '#FF4D4D', fontWeight: 'bold', marginLeft: 8 },
     checkStatusBtn: { backgroundColor: '#FF3B30', height: 45, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+    habitsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF4FF', borderWidth: 1, borderColor: '#D8E6FF', height: 45, borderRadius: 22, marginBottom: 14, gap: 8 },
+    habitsBtnText: { color: '#1E64D3', fontWeight: '700', fontSize: 14 },
     btnTextWhite: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
     sectionHeading: { fontSize: 16, fontWeight: 'bold', color: '#1C1C1E' },
 

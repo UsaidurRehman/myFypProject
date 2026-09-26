@@ -153,6 +153,12 @@ const fetchClientProfile = async () => {
               </View>
               <Text style={styles.comment}>{item.comment}</Text>
               <Text style={styles.date}>{item.date}</Text>
+              {item.workedPeriod ? (
+                <View style={styles.workedRow}>
+                  <Icon name="briefcase-outline" size={12} color="#1E75EB" />
+                  <Text style={styles.workedPeriodText}>Worked: {item.workedPeriod}</Text>
+                </View>
+              ) : null}
             </View>
           ))
         )}
@@ -216,6 +222,8 @@ const styles = StyleSheet.create({
   singleRatingText: { fontSize: 13, fontWeight: '700', marginLeft: 3, color: '#333' },
   comment: { color: '#444', marginVertical: 6, fontSize: 13, lineHeight: 18 },
   date: { color: '#999', fontSize: 11 },
+  workedRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  workedPeriodText: { fontSize: 11, color: '#1E75EB', fontWeight: '600', marginLeft: 4 },
   emptyText: { fontStyle: 'italic', color: '#888', textAlign: 'center', marginVertical: 10 },
   viewAllBtn: { marginTop: 8, padding: 12, alignItems: 'center', backgroundColor: '#E8F0FE', borderRadius: 8 },
   viewAllText: { color: '#1E64D3', fontWeight: '600' }

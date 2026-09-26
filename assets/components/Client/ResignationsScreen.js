@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     StyleSheet, View, Text, Image, FlatList, TouchableOpacity,
     SafeAreaView, ActivityIndicator, StatusBar, RefreshControl
@@ -12,11 +12,7 @@ const ResignationsScreen = ({ navigation }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    useEffect(() => {
-        fetchResignations();
-    }, []);
-
-    const fetchResignations = async () => {
+    const fetchResignations = useCallback(async () => {
         try {
             const token = await AsyncStorage.getItem('userToken');
             const response = await fetch(`${API_DASHBOARD}/GetClientResignations`, {
@@ -35,7 +31,15 @@ const ResignationsScreen = ({ navigation }) => {
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        // First load, then refetch on every focus so a resignation the client just
+        // confirmed shows as Completed the moment they come back to this list.
+        fetchResignations();
+        const unsubscribe = navigation.addListener('focus', fetchResignations);
+        return unsubscribe;
+    }, [navigation, fetchResignations]);
 
     const handleRefresh = () => {
         setIsRefreshing(true);
@@ -61,6 +65,27 @@ const ResignationsScreen = ({ navigation }) => {
                 <Text style={styles.reasonText} numberOfLines={2}>
                     {item.reason}
                 </Text>
+
+                <View
+                    style={[
+                        styles.statusBadge,
+                        item.isConfirmed ? styles.statusBadgeDone : styles.statusBadgePending
+                    ]}
+                >
+                    <Icon
+                        name={item.isConfirmed ? 'check-circle' : 'alert-circle-outline'}
+                        size={13}
+                        color={item.isConfirmed ? '#15803D' : '#B45309'}
+                    />
+                    <Text
+                        style={[
+                            styles.statusBadgeText,
+                            item.isConfirmed ? styles.statusTextDone : styles.statusTextPending
+                        ]}
+                    >
+                        {item.isConfirmed ? 'Completed' : 'Needs your review'}
+                    </Text>
+                </View>
             </View>
 
             {/* Footer */}
@@ -73,7 +98,9 @@ const ResignationsScreen = ({ navigation }) => {
                     style={styles.detailBtn}
                     onPress={() => navigation.navigate('ResignationScreen', { resignationId: item.resignationId })}
                 >
-                    <Text style={styles.detailBtnText}>View Detail</Text>
+                    <Text style={styles.detailBtnText}>
+                        {item.isConfirmed ? 'View Detail' : 'Review & Confirm'}
+                    </Text>
                     <Icon name="chevron-right" size={18} color="#FFF" />
                 </TouchableOpacity>
             </View>
@@ -253,6 +280,20 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         lineHeight: 20,
     },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        marginTop: 10,
+    },
+    statusBadgePending: { backgroundColor: '#FFF7E6', borderWidth: 1, borderColor: '#FCD9A4' },
+    statusBadgeDone: { backgroundColor: '#ECFDF3', borderWidth: 1, borderColor: '#BBF7D0' },
+    statusBadgeText: { fontSize: 11, fontWeight: '700', marginLeft: 5 },
+    statusTextPending: { color: '#B45309' },
+    statusTextDone: { color: '#15803D' },
 
     /* ── Footer ── */
     cardFooter: {

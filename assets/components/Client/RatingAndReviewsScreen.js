@@ -143,6 +143,12 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
                                             <Icon name="calendar-range" size={14} color="#888" />
                                             <Text style={styles.employerDuration}>{item.date}</Text>
                                         </View>
+                                        {item.workedPeriod ? (
+                                            <View style={styles.workedRow}>
+                                                <Icon name="briefcase-outline" size={14} color="#1E75EB" />
+                                                <Text style={styles.workedPeriodText}>Worked: {item.workedPeriod}</Text>
+                                            </View>
+                                        ) : null}
                                     </View>
                                     <View style={styles.starRow}>
                                         {renderStars(item.rating)}
@@ -303,6 +309,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 4,
+    },
+    workedRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 3,
+    },
+    workedPeriodText: {
+        fontSize: 12,
+        color: '#1E75EB',
+        fontWeight: '600',
+        marginLeft: 4,
     },
     emptyContainer: {
         flex: 1,

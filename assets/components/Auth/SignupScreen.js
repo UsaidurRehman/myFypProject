@@ -743,6 +743,12 @@ const SOFT_BLUE_BORDER = '#D8E6FF';
 
 const LOGO_MARK = require('../../images/logo.png');
 
+// The signup POST is a multipart upload (profile photo + JSON). Nothing used to
+// bound it, so when the backend never answered the button stayed on the spinner
+// forever with no reason shown. The request is now raced against this ceiling and
+// the socket is aborted when it fires.
+const SIGNUP_TIMEOUT_MS = 45000;
+
 const ROLES = [
   { key: 'Client', label: 'Client', icon: 'account-outline' },
   { key: 'Worker', label: 'Worker', icon: 'broom' },
@@ -798,6 +804,15 @@ const SignupScreen = ({ navigation, route }) => {
   const [skillsData, setSkillsData] = useState([]);
   const [gender, setGender] = useState('Male');
   const [bio, setBio] = useState('');
+  // Habits: the list comes from the API (dbo.Habits) — the worker only ticks
+  // checkboxes, so the wording stays identical to the client-side filter options.
+  const [habitsCatalog, setHabitsCatalog] = useState([]);
+  const [selectedHabitIds, setSelectedHabitIds] = useState([]);
+  const [isLoadingHabits, setIsLoadingHabits] = useState(false);
+  // True once the worker's current habits have been read from GetWorkerDetail.
+  // While editing, habitsJson is only sent when this is true — otherwise an
+  // empty list would silently wipe the worker's habits.
+  const [habitsPrefilled, setHabitsPrefilled] = useState(false);
 
   // Company fields
   const [companyName, setCompanyName] = useState('');
@@ -823,6 +838,35 @@ const SignupScreen = ({ navigation, route }) => {
   }, [route.params?.isEdit]);
 
   // Restores edit-mode data + the Add-Skills round trip (unchanged behaviour)
+  // ─── HABITS: the checkbox list ──────────────────────────────────────────────
+  useEffect(() => {
+    if (role !== 'Worker') return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsLoadingHabits(true);
+        // [AllowAnonymous] on the server so signup can read it before a token exists
+        const response = await fetch(`${SERVER_BASE}/api/Habits/GetHabits`);
+        if (!response.ok) return;
+        const list = await response.json();
+        if (!cancelled) setHabitsCatalog(Array.isArray(list) ? list : []);
+      } catch (error) {
+        console.error('Habits load failed:', error?.message);
+      } finally {
+        if (!cancelled) setIsLoadingHabits(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [role]);
+
+  const toggleHabit = (habitId) => {
+    setSelectedHabitIds((prev) =>
+      prev.includes(habitId) ? prev.filter((id) => id !== habitId) : [...prev, habitId]
+    );
+  };
+
   useEffect(() => {
     if (route.params?.isEdit && route.params?.initialData && !hasAddedSkills) {
       const data = route.params.initialData;
@@ -847,6 +891,15 @@ const SignupScreen = ({ navigation, route }) => {
           setSkillsData(data.rawExperiences);
           setHasAddedSkills(true);
         }
+
+        // Pre-tick the habits already on the profile
+        // (GetWorkerDetail returns habits: [{ id, name }]).
+        if (Array.isArray(data.habits)) {
+          setSelectedHabitIds(
+            data.habits.map((h) => h.id ?? h.habitId).filter((id) => !!id)
+          );
+        }
+        setHabitsPrefilled(true);
       } else if (targetRole === 'Company') {
         setCompanyName(data.companyName || '');
         setLicenseNumber(data.licenseNumber || '');
@@ -873,6 +926,7 @@ const SignupScreen = ({ navigation, route }) => {
       if (route.params.role !== undefined) setRole(route.params.role);
       if (route.params.gender !== undefined) setGender(route.params.gender);
       if (route.params.bio !== undefined) setBio(route.params.bio);
+      if (Array.isArray(route.params.habits)) setSelectedHabitIds(route.params.habits);
 
       if (route.params.experiencesJson) {
         try {
@@ -882,7 +936,23 @@ const SignupScreen = ({ navigation, route }) => {
         }
       }
 
-      setStep(2);
+      // Come back to the step the worker left from (AddSkills is only reachable
+      // from step 2) — never step 1. AddSkills used to hand back a STALE draft
+      // from an earlier map trip, whose values overwrote the freshly typed
+      // bio / email / salary; the draft is now taken on the way out, so it
+      // matches what was on screen.
+      const backDraft = route.params.signupDraft;
+      const backStep = Number(backDraft?.step);
+      setStep(Number.isFinite(backStep) && backStep >= 2 ? backStep : 2);
+
+      // Consume it: a leftover draft/step in the route params is exactly what
+      // could re-apply later and bounce the form back to step 1.
+      navigation.setParams({
+        skillsCompleted: undefined,
+        experiencesJson: undefined,
+        categoryId: undefined,
+        signupDraft: undefined,
+      });
     }
   }, [route.params]);
 
@@ -906,6 +976,8 @@ const SignupScreen = ({ navigation, route }) => {
     licenseNumber,
     hasAddedSkills,
     skillsData,
+    // habits survive both the AddSkills trip and the MapScreen trip
+    habits: selectedHabitIds,
   });
 
   const openMapForLocation = () => {
@@ -923,29 +995,56 @@ const SignupScreen = ({ navigation, route }) => {
       ...route.params,
       name, age, phone, cnic, salary, email, address, password, confirmPassword,
       role, step, selectedImage, gender, bio,
-      existingExperiences: skillsData
+      habits: selectedHabitIds,
+      existingExperiences: skillsData,
+      // A stale map payload echoed through AddSkills would re-arm the map-return
+      // effect on the way back, so strip it here.
+      signupLocation: undefined,
+      // Fresh snapshot taken the moment we leave the form — AddSkills hands it
+      // back, which is what lets step 2 come back with every field still filled.
+      signupDraft: buildDraft()
     });
   };
 
   const pickImage = () => {
-    launchImageLibrary({ mediaType: 'photo', quality: 0.5 }, (response) => {
-      if (!response.didCancel && response.assets) {
-        setSelectedImage(response.assets[0]);
+    // maxWidth / maxHeight are the options that actually resize on Android —
+    // `quality` on its own is ignored there, so this used to send the full
+    // camera JPEG (5–10 MB) with the signup request, which is exactly the kind
+    // of body that stalls on a phone/LAN link and leaves the button spinning.
+    launchImageLibrary(
+      { mediaType: 'photo', quality: 0.8, maxWidth: 1080, maxHeight: 1080 },
+      (response) => {
+        if (!response.didCancel && response.assets) {
+          const asset = response.assets[0];
+          console.log('[signup] photo picked:', {
+            sizeKB: asset && asset.fileSize ? Math.round(asset.fileSize / 1024) : 'unknown',
+            type: asset && asset.type,
+            width: asset && asset.width,
+            height: asset && asset.height,
+          });
+          setSelectedImage(asset);
+        }
       }
-    });
+    );
   };
 
   // ─── ACTUAL SUBMIT ──────────────────────────────────────────────────────────
   const performSignup = async (data, location) => {
-    if (submittingRef.current) return;
+    if (submittingRef.current) {
+      console.log('[signup] duplicate submit ignored — a request is already in flight');
+      return;
+    }
     submittingRef.current = true;
 
     const {
       role: dataRole, name: dName, age: dAge, phone: dPhone, cnic: dCnic, salary: dSalary,
       email: dEmail, address: dAddress, password: dPassword, confirmPassword: dConfirmPassword,
       selectedImage: dImage, gender: dGender, bio: dBio, companyName: dCompanyName,
-      licenseNumber: dLicenseNumber, skillsData: dSkills
+      licenseNumber: dLicenseNumber, skillsData: dSkills, habits: dHabitsRaw
     } = data;
+
+    // Ticked master-list habit ids, e.g. [1, 10, 17]
+    const dHabits = Array.isArray(dHabitsRaw) ? dHabitsRaw : [];
 
     if (dataRole === 'Company') {
       if (!dCompanyName || !dEmail || !dPhone || !dLicenseNumber || !dAddress) {
@@ -1049,6 +1148,11 @@ const SignupScreen = ({ navigation, route }) => {
         formData.append('Gender', dGender);
         formData.append('Bio', dBio);
         formData.append('experiencesJson', JSON.stringify(dSkills));
+        // dHabits = the ticked master-list ids, e.g. [1,10,17].
+        // While editing, only send this once the current habits were loaded.
+        if (!isEditMode || habitsPrefilled) {
+          formData.append('habitsJson', JSON.stringify(dHabits));
+        }
       }
 
       if (dImage && dImage.uri && !dImage.uri.startsWith('http')) {
@@ -1069,15 +1173,47 @@ const SignupScreen = ({ navigation, route }) => {
       }
     }
 
-    setIsLoading(true);
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json' },
-        body: formData,
-      });
+    const actionLabel = isEditMode ? 'Update' : 'Signup';
+    const photoKB = dImage && dImage.fileSize ? Math.round(dImage.fileSize / 1024) : null;
 
-      const result = await response.json();
+    // Hard ceiling on the upload: Promise.race guarantees the spinner ALWAYS
+    // stops, even if the platform ignores the abort signal.
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    let timeoutId = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        if (controller) controller.abort();
+        const err = new Error('Signup request timed out');
+        err.isTimeout = true;
+        reject(err);
+      }, SIGNUP_TIMEOUT_MS);
+    });
+
+    setIsLoading(true);
+    console.log(`[signup] POST → ${url}`, photoKB ? `(photo ~${photoKB} KB)` : '(no new photo)');
+    try {
+      const response = await Promise.race([
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          body: formData,
+          ...(controller ? { signal: controller.signal } : {}),
+        }),
+        timeoutPromise,
+      ]);
+
+      // Read as text first: a 500 from IIS is an HTML page, and calling .json()
+      // on it threw, which hid the real server message behind a generic
+      // "Cannot reach backend server" toast.
+      const rawBody = await response.text();
+      let result = {};
+      try {
+        result = rawBody ? JSON.parse(rawBody) : {};
+      } catch (parseError) {
+        result = { message: rawBody ? rawBody.slice(0, 180) : '' };
+      }
+
+      console.log(`[signup] ← ${response.status}`, result && result.message ? result.message : '');
 
       if (response.ok) {
         setPendingLocation(null);
@@ -1092,12 +1228,24 @@ const SignupScreen = ({ navigation, route }) => {
           }
         }, 1200);
       } else {
-        NotificationHelper.showError(result.message || "Something went wrong during data validation.");
+        NotificationHelper.showError(
+          `${actionLabel} failed (${response.status}): ${result.message || 'unknown server error'}`
+        );
       }
     } catch (error) {
-      console.error("Auth Action Error:", error);
-      NotificationHelper.showError("Cannot reach backend server.");
+      console.error('[signup] request error:', error);
+      if (error && (error.isTimeout || error.name === 'AbortError')) {
+        NotificationHelper.showError(
+          `${actionLabel} timed out after ${Math.round(SIGNUP_TIMEOUT_MS / 1000)}s — the server never answered. ` +
+          'Check the backend is running and this phone is on the same Wi-Fi, then tap Sign Up again.'
+        );
+      } else {
+        NotificationHelper.showError(
+          `Cannot reach backend server (${(error && error.message) || 'network error'}).`
+        );
+      }
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       submittingRef.current = false;
       setIsLoading(false);
     }
@@ -1127,13 +1275,18 @@ const SignupScreen = ({ navigation, route }) => {
       return;
     }
 
-    if (!selectedImage && (role === 'Client' || role === 'Worker')) {
+    if (!isEditMode && !selectedImage && (role === 'Client' || role === 'Worker')) {
       NotificationHelper.showError("Please upload a profile picture.");
       return;
     }
 
     if (role === 'Worker' && skillsData.length === 0) {
       NotificationHelper.showError("Please add at least one primary skill to proceed.");
+      return;
+    }
+
+    if (role === 'Worker' && !isEditMode && selectedHabitIds.length === 0) {
+      NotificationHelper.showError("Please tick at least one habit to proceed.");
       return;
     }
 
@@ -1177,32 +1330,94 @@ const SignupScreen = ({ navigation, route }) => {
       if (draft.licenseNumber !== undefined) setLicenseNumber(draft.licenseNumber);
       if (draft.hasAddedSkills !== undefined) setHasAddedSkills(draft.hasAddedSkills);
       if (draft.skillsData !== undefined) setSkillsData(draft.skillsData);
+      if (Array.isArray(draft.habits)) setSelectedHabitIds(draft.habits);
 
-      if (!route.params?.isEdit) {
-        performSignup(draft, picked);
-      }
+      // NOTE: returning from the map only fills the pin in — it must NOT fire
+      // the signup request. It used to submit right here, which is how a
+      // create-account POST could be in flight (button spinning) without the
+      // user ever tapping Sign Up on this screen — and it replayed the snapshot
+      // taken before the map instead of the live form.
     }
+
+    // Consume the map payload so a stale draft (with its old step number) can
+    // never be applied a second time.
+    navigation.setParams({ signupLocation: undefined, signupDraft: undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params]);
 
   // ─── header helpers ─────────────────────────────────────────────────────────
-  const showStepUi = !isEditMode && role === 'Worker';
+  // The worker form is stepped in BOTH modes: Edit Profile used to render only
+  // step 1, so bio / email / skills / gender / password (and now habits) were
+  // loaded from the API but impossible to see or change.
+  const showStepUi = role === 'Worker';
   const headerTitle = isEditMode ? 'Edit Profile' : 'Create Account';
-  const headerSubtitle = isEditMode ? 'Update your information' : 'Basic Information';
+
+  // Worker signup is 3 steps so no step needs scrolling:
+  //   1 Identity (photo, name, age, CNIC, phone, address + map pin)
+  //   2 Professional (bio, email, salary, skills, gender)
+  //   3 Habits + Security (habits, password)
+  const WORKER_TOTAL_STEPS = 3;
+  const stepSubtitle = ['Basic Information', 'Professional Details', 'Habits & Security'];
+  const headerSubtitle = isEditMode
+    ? 'Update your information'
+    : (showStepUi
+        ? (stepSubtitle[Math.min(Math.max(step, 1), WORKER_TOTAL_STEPS) - 1] || 'Basic Information')
+        : 'Basic Information');
 
   const goBack = () => {
-    if (showStepUi && step === 2) setStep(1);
+    if (showStepUi && step > 1) setStep(step - 1);
     else navigation.goBack();
   };
 
-  const submitLabel = isEditMode
-    ? (role === 'Company' ? 'Update' : 'Update Profile')
-    : (role === 'Worker' && step === 1 ? 'Next' : 'Sign Up');
+  const isLastWorkerStep = !showStepUi || step >= WORKER_TOTAL_STEPS;
+
+  const submitLabel = showStepUi && !isLastWorkerStep
+    ? 'Next'
+    : isEditMode
+      ? (role === 'Company' ? 'Update' : 'Update Profile')
+      : 'Sign Up';
+
+  // Per-step gate: catch the obvious gaps before the worker walks three screens
+  // deep, then advances. handleSignup() still runs its own full validation at
+  // the end (and the API validates again).
+  const validateWorkerStep = () => {
+    if (step === 1) {
+      if (!isEditMode && !selectedImage) return "Please upload a profile picture.";
+      if (!name.trim()) return "Please enter your full name.";
+      if (!cnic.trim()) return "Please enter your CNIC number.";
+      if (!phone.trim()) return "Please enter your phone number.";
+      if (!address.trim()) return "Please enter your address or street.";
+      return null;
+    }
+    if (step === 2) {
+      if (!email.trim()) return "Please enter your email address.";
+      if (!isEditMode && skillsData.length === 0) return "Please add at least one primary skill.";
+      return null;
+    }
+    // step 3 — habits & security
+    if (!isEditMode && selectedHabitIds.length === 0) return "Please tick at least one habit.";
+    if (!isEditMode && !password) return "Please create a password.";
+    if (password && password !== confirmPassword) return "Passwords do not match.";
+    return null;
+  };
 
   const submitHandler = () => {
-    if (role === 'Worker' && step === 1 && !isEditMode) {
-      setStep(2);
+    if (showStepUi && !isLastWorkerStep) {
+      const problem = validateWorkerStep();
+      if (problem) {
+        NotificationHelper.showError(problem);
+        return;
+      }
+      setStep(step + 1);
       return;
+    }
+    if (showStepUi) {
+      // last step — reuse the same gate, then fall through to the real submit
+      const problem = validateWorkerStep();
+      if (problem) {
+        NotificationHelper.showError(problem);
+        return;
+      }
     }
     handleSignup();
   };
@@ -1297,41 +1512,7 @@ const SignupScreen = ({ navigation, route }) => {
             />
           </View>
           <Field icon="phone-outline" placeholder="Phone Number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-          <Field icon="currency-usd" placeholder="Expected Salary" value={salary} onChangeText={setSalary} keyboardType="numeric" />
           <Field icon="map-marker-outline" placeholder="Address or Street" value={address} onChangeText={setAddress} />
-        </>
-      );
-    }
-
-    // WORKER — STEP 2
-    if (role === 'Worker' && step === 2) {
-      return (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>PROFESSIONAL DESCRIPTION</Text>
-          </View>
-          <Field
-            icon="text-account" placeholder="Briefly describe your work experience and skills..."
-            value={bio} onChangeText={setBio} multiline style={styles.bioField}
-          />
-
-          <Field
-            icon="email-outline" placeholder="Email Address" value={email} onChangeText={setEmail}
-            keyboardType="email-address" autoCapitalize="none"
-          />
-
-          <TouchableOpacity style={styles.field} onPress={goToSkills} activeOpacity={0.85}>
-            <Icon
-              name={skillsData.length > 0 ? 'check-circle-outline' : 'plus-circle-outline'}
-              size={18}
-              color={skillsData.length > 0 ? '#16A34A' : BLUE}
-              style={styles.fieldIcon}
-            />
-            <Text style={[styles.fieldInputText, skillsData.length > 0 && { color: INK }]}>
-              {skillsData.length > 0 ? `${skillsData.length} Skills Added` : 'Add Skills'}
-            </Text>
-            <Icon name="chevron-right" size={20} color="#B9C6DB" />
-          </TouchableOpacity>
 
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>SELECT GENDER</Text>
@@ -1354,7 +1535,103 @@ const SignupScreen = ({ navigation, route }) => {
               <Text style={[styles.genderText, gender === 'Female' && styles.genderTextActive]}>Female</Text>
             </TouchableOpacity>
           </View>
+        </>
+      );
+    }
 
+    // WORKER — STEP 2
+    if (role === 'Worker' && step === 2) {
+      return (
+        <>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>PROFESSIONAL DESCRIPTION</Text>
+          </View>
+          <Field
+            icon="text-account" placeholder="Briefly describe your work experience and skills..."
+            value={bio} onChangeText={setBio} multiline style={styles.bioField}
+          />
+
+          <Field
+            icon="email-outline" placeholder="Email Address" value={email} onChangeText={setEmail}
+            keyboardType="email-address" autoCapitalize="none"
+          />
+
+          <Field icon="currency-usd" placeholder="Expected Salary" value={salary} onChangeText={setSalary} keyboardType="numeric" />
+
+          <TouchableOpacity style={styles.field} onPress={goToSkills} activeOpacity={0.85}>
+            <Icon
+              name={skillsData.length > 0 ? 'check-circle-outline' : 'plus-circle-outline'}
+              size={18}
+              color={skillsData.length > 0 ? '#16A34A' : BLUE}
+              style={styles.fieldIcon}
+            />
+            <Text style={[styles.fieldInputText, skillsData.length > 0 && { color: INK }]}>
+              {skillsData.length > 0 ? `${skillsData.length} Skills Added` : 'Add Skills'}
+            </Text>
+            <Icon name="chevron-right" size={20} color="#B9C6DB" />
+          </TouchableOpacity>
+
+        </>
+      );
+    }
+
+    // WORKER — STEP 3 (habits + password)
+    if (role === 'Worker' && step === 3) {
+      return (
+        <>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>HABITS</Text>
+            <View style={styles.requiredBadge}>
+              <Text style={styles.requiredBadgeText}>Required</Text>
+            </View>
+          </View>
+          <Text style={styles.habitsHint}>
+            Shown on your profile, and used by clients when they filter workers.
+          </Text>
+
+          {isLoadingHabits ? (
+            <ActivityIndicator color={BLUE} style={styles.habitsLoader} />
+          ) : habitsCatalog.length === 0 ? (
+            <Text style={styles.habitsHint}>Could not load the habit list. Check your connection and reopen this screen.</Text>
+          ) : (
+            /* Compact 2-up grid so all habits stay on one screen */
+            <View style={styles.habitsGrid}>
+              {habitsCatalog.map((habit) => {
+                const habitId = habit.habitId ?? habit.id;
+                const isChecked = selectedHabitIds.includes(habitId);
+                return (
+                  <TouchableOpacity
+                    key={habitId}
+                    style={[styles.habitCell, isChecked && styles.habitCellActive]}
+                    onPress={() => toggleHabit(habitId)}
+                    activeOpacity={0.8}
+                  >
+                    <Icon
+                      name={isChecked ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                      size={17}
+                      color={isChecked ? BLUE : '#C4CEDE'}
+                    />
+                    <Text
+                      style={[styles.habitCellText, isChecked && styles.habitCellTextActive]}
+                      numberOfLines={2}
+                    >
+                      {habit.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          <Text style={styles.habitsCount}>
+            {selectedHabitIds.length === 0
+              ? 'Tick at least one habit'
+              : `${selectedHabitIds.length} habit${selectedHabitIds.length > 1 ? 's' : ''} selected`}
+          </Text>
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>SECURITY</Text>
+          </View>
           <View style={styles.splitRow}>
             <Field
               icon="lock-outline" placeholder={isEditMode ? 'New Password' : 'Password'} value={password} onChangeText={setPassword}
@@ -1366,6 +1643,8 @@ const SignupScreen = ({ navigation, route }) => {
             />
           </View>
 
+          {/* Location last: pinning it is the final act of signup — we send the
+              worker to the map, then come straight back here and submit. */}
           {renderLocationCard()}
         </>
       );
@@ -1405,7 +1684,7 @@ const SignupScreen = ({ navigation, route }) => {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{headerTitle}</Text>
           <Text style={styles.headerSubtitle}>
-            {showStepUi ? `Step ${step} of 2 • ${headerSubtitle}` : headerSubtitle}
+            {showStepUi ? `Step ${step} of ${WORKER_TOTAL_STEPS} • ${headerSubtitle}` : headerSubtitle}
           </Text>
         </View>
 
@@ -1417,7 +1696,12 @@ const SignupScreen = ({ navigation, route }) => {
       {/* Step progress — Worker only */}
       {showStepUi && (
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: step === 1 ? '50%' : '100%' }]} />
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.round((Math.min(step, WORKER_TOTAL_STEPS) / WORKER_TOTAL_STEPS) * 100)}%` },
+            ]}
+          />
         </View>
       )}
 
@@ -1446,7 +1730,7 @@ const SignupScreen = ({ navigation, route }) => {
                     key={r.key}
                     activeOpacity={0.85}
                     style={[styles.segmentItem, active && styles.segmentItemActive]}
-                    onPress={() => { setRole(r.key); setStep(1); }}
+                    onPress={() => { if (r.key !== role) { setRole(r.key); setStep(1); } }}
                   >
                     <Icon name={r.icon} size={17} color={active ? BLUE : SUBTLE} />
                     <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{r.label}</Text>
@@ -1722,6 +2006,27 @@ const styles = StyleSheet.create({
   },
   btnPrimaryText: { color: '#FFFFFF', fontSize: 15.5, fontWeight: '800', letterSpacing: 0.2 },
   btnArrow: { marginLeft: 8 },
+  // ─── habits (compact 2-up grid so the step fits without scrolling) ───
+  habitsHint: { fontSize: 12, color: SUBTLE, marginBottom: 10, lineHeight: 17 },
+  habitsLoader: { marginVertical: 18 },
+  habitsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  habitCell: {
+    width: '48.5%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: SURFACE,
+    borderWidth: 1,
+    borderColor: LINE,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginBottom: 8,
+  },
+  habitCellActive: { borderColor: SOFT_BLUE_BORDER, backgroundColor: SOFT_BLUE },
+  habitCellText: { flex: 1, fontSize: 11.5, color: SUBTLE, marginLeft: 7, lineHeight: 15 },
+  habitCellTextActive: { color: INK, fontWeight: '700' },
+  habitsCount: { fontSize: 12, color: SUBTLE, marginTop: 8, marginBottom: 4 },
+
   haveAccount: { alignSelf: 'center', marginTop: 8, padding: 4 },
   haveAccountText: { fontSize: 12.5, color: SUBTLE },
   haveAccountLink: { color: BLUE, fontWeight: '800' },

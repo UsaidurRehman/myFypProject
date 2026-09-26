@@ -13,7 +13,9 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
-import { API_DASHBOARD } from '../../config';
+import { API_DASHBOARD, SERVER_BASE } from '../../config';
+import JobTypeBadge from '../helpers/JobTypeBadge';
+import SlotTimeLabel from '../helpers/SlotTimeLabel';
 
 const API_BASE = API_DASHBOARD;
 
@@ -100,11 +102,17 @@ const AcceptedRequestScreen = ({ navigation }) => {
                 ) : acceptedRequests.length === 0 ? (
                     <Text style={{ textAlign: 'center', marginTop: 40, fontStyle: 'italic', color: '#999' }}>No accepted requests found.</Text>
                 ) : (
-                    acceptedRequests.map((item) => (
+                    acceptedRequests.map((item) => {
+                        const ratingValue = Number(item.clientRating) || 0;
+                        const hasRating = ratingValue > 0;
+                        const avatarUri = item.clientPicture
+                            ? (item.clientPicture.startsWith('http') ? item.clientPicture : `${SERVER_BASE}${item.clientPicture}`)
+                            : null;
+                        return (
                         <View key={item.id} style={styles.card}>
-                            <View style={styles.cardHeader}>
+                            <View style={styles.cardTopRow}>
                                 <View style={styles.serviceBadge}>
-                                    <Text style={styles.serviceText}>{item.service}</Text>
+                                    <Text style={styles.serviceText}>{item.service || 'Interview Request'}</Text>
                                 </View>
                                 <View style={styles.statusContainer}>
                                     <View style={styles.greenDot} />
@@ -112,45 +120,83 @@ const AcceptedRequestScreen = ({ navigation }) => {
                                 </View>
                             </View>
 
-                            <View style={styles.clientHeaderRow}>
-                                <TouchableOpacity onPress={() => {
-                                    if (item.clientId) {
-                                        navigation.navigate('ClientProfileScreen', {
-                                            clientId: item.clientId,
-                                            id: item.clientId
-                                        });
-                                    } else {
-                                        console.warn("Client ID is missing for this review.");
-                                    }
-                                }}
-                                >
-                                    <Text style={styles.clientName}>{item.client || "Customer"}</Text>
-                                </TouchableOpacity>
-                                <View style={styles.ratingBadge}>
-                                    <Icon name="star" size={14} color="#FFD700" />
-                                    <Text style={styles.ratingText}>{item.clientRating > 0 ? item.clientRating.toFixed(1) : "N/A"}</Text>
+                            <View style={styles.clientRow}>
+                                <View style={styles.avatarWrap}>
+                                    {avatarUri ? (
+                                        <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                                    ) : (
+                                        <Icon name="account" size={26} color="#94A3B8" />
+                                    )}
+                                </View>
+
+                                <View style={styles.clientInfo}>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            if (item.clientId) {
+                                                navigation.navigate('ClientProfileScreen', {
+                                                    clientId: item.clientId,
+                                                    id: item.clientId
+                                                });
+                                            }
+                                        }}
+                                        disabled={!item.clientId}
+                                    >
+                                        <Text style={styles.clientName} numberOfLines={1}>
+                                            {item.client || 'Customer'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <Text style={styles.clientCaption} numberOfLines={1}>
+                                        {item.time || 'Just now'}
+                                    </Text>
+                                </View>
+
+                                <View style={[styles.ratingBadge, !hasRating && styles.ratingBadgeMuted]}>
+                                    <Icon
+                                        name={hasRating ? 'star' : 'star-outline'}
+                                        size={12}
+                                        color={hasRating ? '#F59E0B' : '#94A3B8'}
+                                    />
+                                    <Text style={[styles.ratingText, !hasRating && styles.ratingTextMuted]}>
+                                        {hasRating ? ratingValue.toFixed(1) : 'New'}
+                                    </Text>
                                 </View>
                             </View>
 
-                            <View style={styles.locationContainer}>
-                                <View style={styles.pinBg}>
-                                    <Icon name="map-marker" size={18} color="#E91E63" />
-                                </View>
-                                <Text style={styles.locationText}>{item.location}</Text>
+                            <View style={styles.chipRow}>
+                                <JobTypeBadge jobType={item.jobType} small />
+                                <SlotTimeLabel
+                                    startTime={item.slotStartTime}
+                                    endTime={item.slotEndTime}
+                                    small
+                                />
                             </View>
 
-                            <View style={[styles.locationContainer, { marginTop: -5 }]}>
-                                <View style={styles.pinBg}>
-                                    <Icon name="phone" size={18} color="#4CAF50" />
-                                </View>
-                                <Text style={styles.locationText}>{item.clientPhone}</Text>
+                            <View style={styles.divider} />
+
+                            <View style={styles.detailRow}>
+                                <Icon name="map-marker-outline" size={16} color="#E91E63" />
+                                <Text style={styles.detailText} numberOfLines={2}>
+                                    {item.location || 'Location not provided'}
+                                </Text>
                             </View>
 
-                            <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(item.id)}>
+                            {item.clientPhone ? (
+                                <View style={styles.detailRow}>
+                                    <Icon name="phone-outline" size={16} color="#16A34A" />
+                                    <Text style={styles.detailText}>{item.clientPhone}</Text>
+                                </View>
+                            ) : null}
+
+                            <TouchableOpacity
+                                style={styles.rejectBtn}
+                                onPress={() => handleReject(item.id)}
+                                activeOpacity={0.85}
+                            >
                                 <Text style={styles.rejectBtnText}>Reject</Text>
                             </TouchableOpacity>
                         </View>
-                    ))
+                        );
+                    })
                 )}
             </ScrollView>
         </SafeAreaView>
@@ -216,113 +262,83 @@ const styles = StyleSheet.create({
     },
     card: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 20,
+        borderRadius: 18,
         padding: 16,
-        marginBottom: 16,
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
+        marginBottom: 14,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: '#E8EDF5',
+        elevation: 3,
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
     },
-    cardHeader: {
+
+    cardTopRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 10,
+        justifyContent: 'space-between',
+        marginBottom: 14,
     },
     serviceBadge: {
+        backgroundColor: '#EAF2FF',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+    },
+    serviceText: { color: '#1E64D3', fontSize: 11.5, fontWeight: '800', letterSpacing: 0.2 },
+    statusContainer: { flexDirection: 'row', alignItems: 'center', marginLeft: 10 },
+    greenDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#22C55E', marginRight: 6 },
+    statusText: { color: '#16A34A', fontSize: 11.5, fontWeight: '800' },
+
+    clientRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    avatarWrap: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: '#EAF2FF',
         borderWidth: 1,
-        borderColor: '#1E64D3',
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-    },
-    serviceText: {
-        fontSize: 12,
-        color: '#1E64D3',
-        fontWeight: '600',
-    },
-    statusContainer: {
-        flexDirection: 'row',
+        borderColor: '#DBEAFE',
         alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
     },
-    clientName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#111827',
-        flex: 1,
-        marginRight: 8,
-    },
-    greenDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#4CAF50',
-        marginRight: 6,
-    },
-    statusText: {
-        fontSize: 14,
-        color: '#4CAF50',
-        fontWeight: '500',
-    },
-    clientHeaderRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 10,
-    },
-    clientLabel: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#111827',
-        flex: 1,
-        marginRight: 8,
-    },
+    avatar: { width: 46, height: 46, borderRadius: 23 },
+    clientInfo: { flex: 1, marginLeft: 12, marginRight: 8 },
+    clientName: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
+    clientCaption: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+
     ratingBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFF9E6',
+        backgroundColor: '#FFF7E6',
+        borderWidth: 1,
+        borderColor: '#FDE3A7',
         paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#FFE599',
+        borderRadius: 10,
+        flexShrink: 0,
     },
-    ratingText: {
-        marginLeft: 3,
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#B45309',
-    },
-    locationContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    pinBg: {
-        marginRight: 8,
-    },
-    locationText: {
-        fontSize: 14,
-        color: '#666',
-    },
+    ratingBadgeMuted: { backgroundColor: '#F4F6FA', borderColor: '#E2E8F0' },
+    ratingText: { marginLeft: 3, fontSize: 12, fontWeight: '800', color: '#B45309' },
+    ratingTextMuted: { color: '#8494AB' },
+
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    divider: { height: 1, backgroundColor: '#EEF2F7', marginTop: 14, marginBottom: 12 },
+    detailRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
+    detailText: { flex: 1, fontSize: 13, color: '#4B5563', lineHeight: 18, marginLeft: 8 },
+
     rejectBtn: {
-        alignSelf: 'flex-end',
-        backgroundColor: '#F5F5F5',
-        paddingHorizontal: 25,
-        paddingVertical: 8,
-        borderRadius: 20,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#FEF2F2',
         borderWidth: 1,
-        borderColor: '#E0E0E0',
+        borderColor: '#FECACA',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 6,
     },
-    rejectBtnText: {
-        color: '#9E9E9E',
-        fontWeight: 'bold',
-        fontSize: 16,
-    },
+    rejectBtnText: { color: '#DC2626', fontWeight: '800', fontSize: 13.5 }
 });
 
 export default AcceptedRequestScreen;
