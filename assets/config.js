@@ -5,7 +5,9 @@
 // OPTION 2: Visual Studio Dev — Physical Device (same Wi-Fi):
 // const IP_ADDRESS = ' 10.251.108.219';
 // const IP_ADDRESS = '10.0.2.2';
-const IP_ADDRESS = '192.168.100.13';
+
+// const IP_ADDRESS = '192.168.100.13';
+const IP_ADDRESS = '10.141.140.219';
 const PORT = '5150';
 export const SERVER_BASE = `http://${IP_ADDRESS}:${PORT}`;
 

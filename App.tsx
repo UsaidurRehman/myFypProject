@@ -28,7 +28,8 @@ import WorkerDirectoryScreen from './assets/components/Company/WorkerDirectorySc
 import WorkerDetailsVerificationScreen from './assets/components/Company/WorkerDetailsVerificationScreen.js'
 import WorkerCertificationDetail from './assets/components/Client/WorkerCertificationDetail.js'
 import PoliceVerificationPortal from './assets/components/Police/PoliceVerificationPortal.js'
-import FileCriminalRecordScreen from './assets/components/Police/FileCriminalRecordScreen.js'
+import IssueCharacterCertificateScreen from './assets/components/Police/IssueCharacterCertificateScreen.js'
+import CharacterCertificateScreen from './assets/components/Police/CharacterCertificateScreen.js'
 import Map from './assets/components/Map/Map.js'
 import Toast from 'react-native-toast-message';
 import ClientProfileScreen from './assets/components/Client/ClientProfileScreen.js'
@@ -67,7 +68,8 @@ export default function App() {
           <Stack.Screen name="WorkerDetailsVerificationScreen" component={WorkerDetailsVerificationScreen} />
           <Stack.Screen name="WorkerCertificationDetail" component={WorkerCertificationDetail} />
           <Stack.Screen name="PoliceVerificationPortal" component={PoliceVerificationPortal} />
-          <Stack.Screen name="FileCriminalRecordScreen" component={FileCriminalRecordScreen} />
+          <Stack.Screen name="IssueCharacterCertificateScreen" component={IssueCharacterCertificateScreen} />
+          <Stack.Screen name="CharacterCertificateScreen" component={CharacterCertificateScreen} />
           <Stack.Screen name="MapScreen" component={Map} />
           <Stack.Screen name="ClientProfileScreen" component={ClientProfileScreen} />
         </Stack.Navigator>

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_DASHBOARD } from '../../config';
+import { API_DASHBOARD, SERVER_BASE } from '../../config';
 
 const API_BASE = API_DASHBOARD;
 
@@ -45,8 +45,8 @@ const FilterationScreen = ({ navigation, route }) => {
     const fetchHabits = async () => {
         try {
             const token = await AsyncStorage.getItem('userToken');
-            const response = await fetch(`${API_BASE}/GetHabits`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const response = await fetch(`${SERVER_BASE}/api/Habits/GetHabits`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
             if (response.ok) {
                 const list = await response.json();
@@ -260,6 +260,12 @@ const FilterationScreen = ({ navigation, route }) => {
                     {selectedSkills.map(s => (
                         <FilterTag key={`tag-${s}`} label={getCategoryLabel(s)} onRemove={() => toggleSkillSelection(s)} />
                     ))}
+                    {selectedHabitIds.map(hId => {
+                        const habitObj = habitsCatalog.find(item => (item.habitId ?? item.id) === hId);
+                        return habitObj ? (
+                            <FilterTag key={`habit-${hId}`} label={habitObj.name} onRemove={() => toggleHabitFilter(hId)} />
+                        ) : null;
+                    })}
                 </View>
 
                 {/* Gender Selection */}

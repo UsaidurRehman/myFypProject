@@ -231,12 +231,12 @@ const WorkerDetailScreen = ({ navigation, route }) => {
 
                     <TouchableOpacity
                         style={styles.policeAlertButton}
-                        onPress={() => navigation.navigate('workerPoliceRecord', { workerId: worker.id || workerId })}
+                        onPress={() => navigation.navigate('CharacterCertificateScreen', { workerId: worker.id || workerId, viewerRole: 'Client' })}
                     >
-                        <Icon name="shield-alert" size={22} color="#B91C1C" />
+                        <Icon name="shield-search" size={22} color="#B91C1C" />
                         <View style={styles.badgeTextContainer}>
                             <Text style={styles.policeAlertTitle}>Criminal Background Check</Text>
-                            <Text style={styles.policeAlertSubtitle}>Click to review FIR & verification status</Text>
+                            <Text style={styles.policeAlertSubtitle}>View the worker's police character certificate</Text>
                         </View>
                         <Icon name="chevron-right" size={20} color="#B91C1C" />
                     </TouchableOpacity>

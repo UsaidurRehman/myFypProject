@@ -20,7 +20,9 @@ import { SERVER_BASE } from '../../config';
 // ticks checkboxes here, so the wording matches the client-side filter exactly.
 const API_HABITS = `${SERVER_BASE}/api/Habits`;
 
-const MyHabitsScreen = ({ navigation }) => {
+const MyHabitsScreen = ({ navigation, route }) => {
+    const isSignup = route?.params?.isSignup;
+
     const [catalog, setCatalog] = useState([]);        // all active habits
     const [selectedIds, setSelectedIds] = useState([]); // what this worker ticked
     const [savedIds, setSavedIds] = useState([]);       // what is in the DB right now
@@ -30,33 +32,52 @@ const MyHabitsScreen = ({ navigation }) => {
 
     const fetchAll = useCallback(async () => {
         try {
-            const token = await AsyncStorage.getItem('userToken');
-            const workerId = await AsyncStorage.getItem('workerId');
+            if (isSignup) {
+                // In signup flow: fetch catalog without auth headers
+                const catalogRes = await fetch(`${API_HABITS}/GetHabits`);
+                if (catalogRes.ok) {
+                    const list = await catalogRes.json();
+                    setCatalog(Array.isArray(list) ? list : []);
+                } else {
+                    NotificationHelper.showError('Could not load the habit list.');
+                }
 
-            if (!workerId) {
-                NotificationHelper.showError('Session not found. Please login again.');
-                navigation.goBack();
-                return;
-            }
-
-            const headers = { Authorization: `Bearer ${token}` };
-
-            const [catalogRes, mineRes] = await Promise.all([
-                fetch(`${API_HABITS}/GetHabits`, { headers }),
-                fetch(`${API_HABITS}/GetWorkerHabits/${workerId}`, { headers }),
-            ]);
-
-            if (catalogRes.ok) {
-                const list = await catalogRes.json();
-                setCatalog(Array.isArray(list) ? list : []);
+                const initial = Array.isArray(route.params?.habits)
+                    ? route.params.habits
+                    : Array.isArray(route.params?.selectedHabitIds)
+                        ? route.params.selectedHabitIds
+                        : [];
+                setSelectedIds(initial);
+                setSavedIds(initial);
             } else {
-                NotificationHelper.showError('Could not load the habit list.');
-            }
+                const token = await AsyncStorage.getItem('userToken');
+                const workerId = await AsyncStorage.getItem('workerId');
 
-            if (mineRes.ok) {
-                const mine = await mineRes.json();
-                setSelectedIds(Array.isArray(mine.habitIds) ? mine.habitIds : []);
-                setSavedIds(Array.isArray(mine.habitIds) ? mine.habitIds : []);
+                if (!workerId) {
+                    NotificationHelper.showError('Session not found. Please login again.');
+                    navigation.goBack();
+                    return;
+                }
+
+                const headers = { Authorization: `Bearer ${token}` };
+
+                const [catalogRes, mineRes] = await Promise.all([
+                    fetch(`${API_HABITS}/GetHabits`, { headers }),
+                    fetch(`${API_HABITS}/GetWorkerHabits/${workerId}`, { headers }),
+                ]);
+
+                if (catalogRes.ok) {
+                    const list = await catalogRes.json();
+                    setCatalog(Array.isArray(list) ? list : []);
+                } else {
+                    NotificationHelper.showError('Could not load the habit list.');
+                }
+
+                if (mineRes.ok) {
+                    const mine = await mineRes.json();
+                    setSelectedIds(Array.isArray(mine.habitIds) ? mine.habitIds : []);
+                    setSavedIds(Array.isArray(mine.habitIds) ? mine.habitIds : []);
+                }
             }
         } catch (error) {
             console.error('My habits load failed:', error?.message);
@@ -65,11 +86,10 @@ const MyHabitsScreen = ({ navigation }) => {
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    }, [navigation]);
+    }, [navigation, isSignup, route?.params]);
 
     useEffect(() => {
         fetchAll();
-        // Refetch on focus so the list is fresh if the profile was edited elsewhere.
         const unsubscribe = navigation.addListener('focus', fetchAll);
         return unsubscribe;
     }, [navigation, fetchAll]);
@@ -89,9 +109,32 @@ const MyHabitsScreen = ({ navigation }) => {
         selectedIds.length !== savedIds.length ||
         selectedIds.some((id) => !savedIds.includes(id));
 
+    const handleBack = () => {
+        if (isSignup) {
+            navigation.navigate('Signup', {
+                ...route.params,
+                ...(route.params?.signupDraft || {}),
+                habitsCompleted: true,
+                habits: selectedIds,
+            });
+        } else {
+            navigation.goBack();
+        }
+    };
+
     const handleSave = async () => {
         if (selectedIds.length === 0) {
             NotificationHelper.showError('Please keep at least one habit ticked.');
+            return;
+        }
+
+        if (isSignup) {
+            navigation.navigate('Signup', {
+                ...route.params,
+                ...(route.params?.signupDraft || {}),
+                habitsCompleted: true,
+                habits: selectedIds,
+            });
             return;
         }
 
@@ -131,10 +174,10 @@ const MyHabitsScreen = ({ navigation }) => {
     const renderHeader = () => (
         <View style={styles.headerBar}>
             <View style={styles.headerLeft}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
                     <Icon name="arrow-left" size={24} color="#1F2937" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>My Habits</Text>
+                <Text style={styles.headerTitle}>{isSignup ? 'Select Habits' : 'My Habits'}</Text>
             </View>
             <View style={styles.logoBox}>
                 <Image source={require('../../images/logo.png')} style={styles.logoImage} />
@@ -219,16 +262,16 @@ const MyHabitsScreen = ({ navigation }) => {
 
             <View style={styles.footer}>
                 <TouchableOpacity
-                    style={[styles.saveBtn, (isSaving || !hasChanges) && styles.saveBtnIdle]}
+                    style={[styles.saveBtn, (isSaving || (!isSignup && !hasChanges)) && styles.saveBtnIdle]}
                     onPress={handleSave}
                     activeOpacity={0.85}
-                    disabled={isSaving || !hasChanges}
+                    disabled={isSaving || (!isSignup && !hasChanges)}
                 >
                     {isSaving ? (
                         <ActivityIndicator color="#FFF" />
                     ) : (
                         <Text style={styles.saveBtnText}>
-                            {hasChanges ? 'Save Habits' : 'No Changes'}
+                            {isSignup ? 'Confirm Habits' : hasChanges ? 'Save Habits' : 'No Changes'}
                         </Text>
                     )}
                 </TouchableOpacity>

@@ -26,7 +26,8 @@ const FindServiceScreen = ({ navigation, route }) => {
         gender: '',
         city: '',
         categories: [],
-        subSkills: {}
+        subSkills: {},
+        habits: []
     });
 
     useEffect(() => {
@@ -108,11 +109,21 @@ const FindServiceScreen = ({ navigation, route }) => {
                 url += `city=${encodeURIComponent(currentFilters.city)}&`;
             }
 
-            Object.keys(currentFilters.subSkills).forEach(catName => {
-                currentFilters.subSkills[catName].forEach(skill => {
-                    url += `subSkills=${encodeURIComponent(skill)}&`;
+            if (currentFilters.subSkills) {
+                Object.keys(currentFilters.subSkills).forEach(catName => {
+                    if (Array.isArray(currentFilters.subSkills[catName])) {
+                        currentFilters.subSkills[catName].forEach(skill => {
+                            url += `subSkills=${encodeURIComponent(skill)}&`;
+                        });
+                    }
                 });
-            });
+            }
+
+            if (currentFilters.habits && Array.isArray(currentFilters.habits)) {
+                currentFilters.habits.forEach(hId => {
+                    url += `habitIds=${encodeURIComponent(hId)}&`;
+                });
+            }
 
             console.log('🔗 Worker API URL:', url.substring(0, 80) + '...');
             const response = await fetch(url, {
@@ -221,15 +232,10 @@ const FindServiceScreen = ({ navigation, route }) => {
                                 </Text>
                             </View>
 
-                            {item.isBlocked ? (
-                                <View style={[styles.policeChip, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
-                                    <Icon name="alert-octagon" size={12} color="#991B1B" />
-                                    <Text style={[styles.policeChipText, { color: '#991B1B' }]}>FIR Record</Text>
-                                </View>
-                            ) : item.isFlagged ? (
-                                <View style={[styles.policeChip, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                                    <Icon name="alert" size={12} color="#92400E" />
-                                    <Text style={[styles.policeChipText, { color: '#92400E' }]}>Warned</Text>
+                            {item.isPoliceVerified ? (
+                                <View style={[styles.policeChip, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' }]}>
+                                    <Icon name="shield-check" size={12} color="#166534" />
+                                    <Text style={[styles.policeChipText, { color: '#166534' }]}>Police Verified</Text>
                                 </View>
                             ) : null}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,43 +11,63 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { API_POLICE, SERVER_BASE } from '../../config';
 
 const PoliceVerificationPortal = ({ navigation }) => {
   const [searchCnic, setSearchCnic] = useState('');
   const [workers, setWorkers] = useState([]);
-  const [totalResults, setTotalResults] = useState(0);
+  const [counts, setCounts] = useState({ certified: 0, uncertified: 0 });
   const [isLoading, setIsLoading] = useState(false);
+  // Tab 1 = Uncertified (default), Tab 2 = Certified
+  const [activeTab, setActiveTab] = useState('Uncertified');
 
   const fetchWorkers = async (cnicQuery = '') => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_POLICE}/GetWorkersForVerification?searchCnic=${cnicQuery}`);
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${API_POLICE}/GetWorkersForVerification?searchCnic=${cnicQuery}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await response.json();
       if (response.ok) {
         setWorkers(data.workers || []);
-        setTotalResults(data.totalResults || 0);
+        setCounts({
+          certified: data.certifiedCount || 0,
+          uncertified: data.uncertifiedCount || 0,
+        });
       }
     } catch (error) {
-      console.error("Error fetching workers:", error);
+      console.error('Error fetching workers:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchWorkers('');
-  }, []);
+  // Refresh on focus so a freshly-issued certificate moves the worker to the
+  // Certified tab the moment the officer comes back.
+  useFocusEffect(
+    useCallback(() => {
+      fetchWorkers(searchCnic);
+    }, [searchCnic])
+  );
 
   const handleSearch = (text) => {
     setSearchCnic(text);
     fetchWorkers(text);
   };
 
+  const visibleWorkers = workers.filter((w) =>
+    activeTab === 'Certified' ? w.isCertified : !w.isCertified
+  );
+
   const renderWorkerCard = ({ item }) => {
     const imageUri = item.picture
-      ? (item.picture.startsWith('http') ? item.picture : `${SERVER_BASE}${item.picture}`)
-      : 'https://via.placeholder.com/150';
+      ? item.picture.startsWith('http')
+        ? item.picture
+        : `${SERVER_BASE}${item.picture}`
+      : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
 
     return (
       <View style={styles.card}>
@@ -60,13 +80,39 @@ const PoliceVerificationPortal = ({ navigation }) => {
               <Text style={styles.cnicText}>CNIC: {item.cnic}</Text>
             </View>
           </View>
+
+          {item.isCertified ? (
+            <View style={styles.certChip}>
+              <Icon name="shield-check" size={12} color="#166534" />
+              <Text style={styles.certChipText}>Certified</Text>
+            </View>
+          ) : (
+            <View style={styles.uncertChip}>
+              <Icon name="shield-off-outline" size={12} color="#92400E" />
+              <Text style={styles.uncertChipText}>Uncertified</Text>
+            </View>
+          )}
         </View>
 
+        {item.isCertified && item.certExpiry ? (
+          <Text style={styles.expiryText}>Valid until {item.certExpiry}</Text>
+        ) : null}
+
         <TouchableOpacity
-          style={styles.reviewButton}
-          onPress={() => navigation.navigate('FileCriminalRecordScreen', { workerId: item.id })}
+          style={[styles.reviewButton, item.isCertified && styles.renewButton]}
+          onPress={() =>
+            navigation.navigate('IssueCharacterCertificateScreen', { workerId: item.id })
+          }
         >
-          <Text style={styles.reviewButtonText}>REVIEW & FLAG WORKER</Text>
+          <Icon
+            name={item.isCertified ? 'certificate-outline' : 'certificate'}
+            size={16}
+            color="#FFFFFF"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.reviewButtonText}>
+            {item.isCertified ? 'RENEW CHARACTER CERTIFICATE' : 'ISSUE CHARACTER CERTIFICATE'}
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -81,7 +127,7 @@ const PoliceVerificationPortal = ({ navigation }) => {
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
           <Text style={styles.headerTitle}>Police Verification Portal</Text>
-          <Text style={styles.headerSubtitle}>CRIMINAL RECORD DATABASE</Text>
+          <Text style={styles.headerSubtitle}>CHARACTER CERTIFICATE DATABASE</Text>
         </View>
       </View>
 
@@ -98,12 +144,24 @@ const PoliceVerificationPortal = ({ navigation }) => {
         />
       </View>
 
-      {/* Subheader */}
-      <View style={styles.subHeader}>
-        <View style={styles.filterChip}>
-          <Text style={styles.filterChipText}>All Workers List</Text>
-        </View>
-        <Text style={styles.totalResultsText}>{totalResults} Total Results</Text>
+      {/* Tabs: Uncertified | Certified */}
+      <View style={styles.tabRow}>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'Uncertified' && styles.activeTabButton]}
+          onPress={() => setActiveTab('Uncertified')}
+        >
+          <Text style={[styles.tabText, activeTab === 'Uncertified' && styles.activeTabText]}>
+            Uncertified ({counts.uncertified})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'Certified' && styles.activeTabButton]}
+          onPress={() => setActiveTab('Certified')}
+        >
+          <Text style={[styles.tabText, activeTab === 'Certified' && styles.activeTabText]}>
+            Certified ({counts.certified})
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Workers List */}
@@ -111,11 +169,16 @@ const PoliceVerificationPortal = ({ navigation }) => {
         <ActivityIndicator size="large" color="#111E2E" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={workers}
+          data={visibleWorkers}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderWorkerCard}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              No {activeTab.toLowerCase()} workers found.
+            </Text>
+          }
         />
       )}
     </SafeAreaView>
@@ -157,21 +220,25 @@ const styles = StyleSheet.create({
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 15, color: '#1E293B' },
 
-  subHeader: {
+  tabRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: '#EEF2F6',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 9,
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 10,
   },
-  filterChip: {
+  activeTabButton: {
     backgroundColor: '#111E2E',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
   },
-  filterChipText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
-  totalResultsText: { color: '#475569', fontWeight: 'bold', fontSize: 13 },
+  tabText: { fontSize: 13, fontWeight: '700', color: '#475569' },
+  activeTabText: { color: '#FFFFFF' },
 
   listContainer: { paddingHorizontal: 20, paddingBottom: 20 },
   card: {
@@ -185,7 +252,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
   infoContainer: { flex: 1, justifyContent: 'center' },
   workerName: { fontSize: 16, fontWeight: 'bold', color: '#0F172A' },
@@ -193,13 +260,43 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: 13, color: '#0284C7', fontWeight: '600' },
   cnicText: { fontSize: 12, color: '#64748B', marginTop: 3, fontWeight: '500' },
 
+  certChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    gap: 4,
+  },
+  certChipText: { color: '#166534', fontWeight: '800', fontSize: 10 },
+  uncertChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    gap: 4,
+  },
+  uncertChipText: { color: '#92400E', fontWeight: '800', fontSize: 10 },
+  expiryText: { fontSize: 12, color: '#16A34A', fontWeight: '600', marginBottom: 10 },
+
   reviewButton: {
     backgroundColor: '#111E2E',
     borderRadius: 10,
     paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
+  renewButton: { backgroundColor: '#0F766E' },
   reviewButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold', letterSpacing: 0.5 },
+  emptyText: { textAlign: 'center', color: '#94A3B8', marginTop: 40, fontSize: 14 },
 });
 
 export default PoliceVerificationPortal;

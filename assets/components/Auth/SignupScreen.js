@@ -954,6 +954,40 @@ const SignupScreen = ({ navigation, route }) => {
         signupDraft: undefined,
       });
     }
+
+    if (route.params?.habitsCompleted) {
+      if (route.params.name !== undefined) setName(route.params.name);
+      if (route.params.age !== undefined) setAge(route.params.age);
+      if (route.params.phone !== undefined) setPhone(route.params.phone);
+      if (route.params.cnic !== undefined) setCnic(route.params.cnic);
+      if (route.params.salary !== undefined) setSalary(route.params.salary);
+      if (route.params.email !== undefined) setEmail(route.params.email);
+      if (route.params.address !== undefined) setAddress(route.params.address);
+      if (route.params.password !== undefined) setPassword(route.params.password);
+      if (route.params.confirmPassword !== undefined) setConfirmPassword(route.params.confirmPassword);
+      if (route.params.selectedImage !== undefined) setSelectedImage(route.params.selectedImage);
+      if (route.params.role !== undefined) setRole(route.params.role);
+      if (route.params.gender !== undefined) setGender(route.params.gender);
+      if (route.params.bio !== undefined) setBio(route.params.bio);
+      if (Array.isArray(route.params.habits)) setSelectedHabitIds(route.params.habits);
+
+      if (route.params.experiencesJson) {
+        try {
+          setSkillsData(JSON.parse(route.params.experiencesJson));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      const backDraft = route.params.signupDraft;
+      const backStep = Number(backDraft?.step);
+      setStep(Number.isFinite(backStep) && backStep >= 2 ? backStep : 3);
+
+      navigation.setParams({
+        habitsCompleted: undefined,
+        signupDraft: undefined,
+      });
+    }
   }, [route.params]);
 
   // Snapshot of everything the signup API needs (survives the MapScreen trip)
@@ -997,11 +1031,20 @@ const SignupScreen = ({ navigation, route }) => {
       role, step, selectedImage, gender, bio,
       habits: selectedHabitIds,
       existingExperiences: skillsData,
-      // A stale map payload echoed through AddSkills would re-arm the map-return
-      // effect on the way back, so strip it here.
       signupLocation: undefined,
-      // Fresh snapshot taken the moment we leave the form — AddSkills hands it
-      // back, which is what lets step 2 come back with every field still filled.
+      signupDraft: buildDraft()
+    });
+  };
+
+  const goToHabits = () => {
+    navigation.navigate('MyHabitsScreen', {
+      ...route.params,
+      isSignup: true,
+      name, age, phone, cnic, salary, email, address, password, confirmPassword,
+      role, step, selectedImage, gender, bio,
+      habits: selectedHabitIds,
+      existingExperiences: skillsData,
+      signupLocation: undefined,
       signupDraft: buildDraft()
     });
   };
@@ -1356,8 +1399,9 @@ const SignupScreen = ({ navigation, route }) => {
   //   1 Identity (photo, name, age, CNIC, phone, address + map pin)
   //   2 Professional (bio, email, salary, skills, gender)
   //   3 Habits + Security (habits, password)
-  const WORKER_TOTAL_STEPS = 3;
-  const stepSubtitle = ['Basic Information', 'Professional Details', 'Habits & Security'];
+  // Worker signup is 2 steps (Basic Information & Professional/Security Details)
+  const WORKER_TOTAL_STEPS = 2;
+  const stepSubtitle = ['Basic Information', 'Professional Details & Security'];
   const headerSubtitle = isEditMode
     ? 'Update your information'
     : (showStepUi
@@ -1377,9 +1421,7 @@ const SignupScreen = ({ navigation, route }) => {
       ? (role === 'Company' ? 'Update' : 'Update Profile')
       : 'Sign Up';
 
-  // Per-step gate: catch the obvious gaps before the worker walks three screens
-  // deep, then advances. handleSignup() still runs its own full validation at
-  // the end (and the API validates again).
+  // Per-step gate: catch obvious gaps before advancing/submitting.
   const validateWorkerStep = () => {
     if (step === 1) {
       if (!isEditMode && !selectedImage) return "Please upload a profile picture.";
@@ -1389,13 +1431,10 @@ const SignupScreen = ({ navigation, route }) => {
       if (!address.trim()) return "Please enter your address or street.";
       return null;
     }
-    if (step === 2) {
-      if (!email.trim()) return "Please enter your email address.";
-      if (!isEditMode && skillsData.length === 0) return "Please add at least one primary skill.";
-      return null;
-    }
-    // step 3 — habits & security
-    if (!isEditMode && selectedHabitIds.length === 0) return "Please tick at least one habit.";
+    // step 2 — professional details, skills, habits, security & location
+    if (!email.trim()) return "Please enter your email address.";
+    if (!isEditMode && skillsData.length === 0) return "Please add at least one primary skill.";
+    if (!isEditMode && selectedHabitIds.length === 0) return "Please select at least one habit.";
     if (!isEditMode && !password) return "Please create a password.";
     if (password && password !== confirmPassword) return "Passwords do not match.";
     return null;
@@ -1544,19 +1583,23 @@ const SignupScreen = ({ navigation, route }) => {
       return (
         <>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>PROFESSIONAL DESCRIPTION</Text>
+            <Text style={styles.sectionLabel}>PROFESSIONAL DETAILS</Text>
           </View>
           <Field
-            icon="text-account" placeholder="Briefly describe your work experience and skills..."
+            icon="text-account" placeholder="Briefly describe your experience..."
             value={bio} onChangeText={setBio} multiline style={styles.bioField}
           />
 
-          <Field
-            icon="email-outline" placeholder="Email Address" value={email} onChangeText={setEmail}
-            keyboardType="email-address" autoCapitalize="none"
-          />
-
-          <Field icon="currency-usd" placeholder="Expected Salary" value={salary} onChangeText={setSalary} keyboardType="numeric" />
+          <View style={styles.splitRow}>
+            <Field
+              icon="email-outline" placeholder="Email Address" value={email} onChangeText={setEmail}
+              keyboardType="email-address" autoCapitalize="none" style={styles.half}
+            />
+            <Field
+              icon="currency-usd" placeholder="Salary" value={salary} onChangeText={setSalary}
+              keyboardType="numeric" style={styles.half}
+            />
+          </View>
 
           <TouchableOpacity style={styles.field} onPress={goToSkills} activeOpacity={0.85}>
             <Icon
@@ -1571,67 +1614,21 @@ const SignupScreen = ({ navigation, route }) => {
             <Icon name="chevron-right" size={20} color="#B9C6DB" />
           </TouchableOpacity>
 
-        </>
-      );
-    }
+          <TouchableOpacity style={styles.field} onPress={goToHabits} activeOpacity={0.85}>
+            <Icon
+              name={selectedHabitIds.length > 0 ? 'check-circle-outline' : 'plus-circle-outline'}
+              size={18}
+              color={selectedHabitIds.length > 0 ? '#16A34A' : BLUE}
+              style={styles.fieldIcon}
+            />
+            <Text style={[styles.fieldInputText, selectedHabitIds.length > 0 && { color: INK }]}>
+              {selectedHabitIds.length > 0
+                ? `${selectedHabitIds.length} Habit${selectedHabitIds.length > 1 ? 's' : ''} Selected`
+                : 'Select Habits'}
+            </Text>
+            <Icon name="chevron-right" size={20} color="#B9C6DB" />
+          </TouchableOpacity>
 
-    // WORKER — STEP 3 (habits + password)
-    if (role === 'Worker' && step === 3) {
-      return (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>HABITS</Text>
-            <View style={styles.requiredBadge}>
-              <Text style={styles.requiredBadgeText}>Required</Text>
-            </View>
-          </View>
-          <Text style={styles.habitsHint}>
-            Shown on your profile, and used by clients when they filter workers.
-          </Text>
-
-          {isLoadingHabits ? (
-            <ActivityIndicator color={BLUE} style={styles.habitsLoader} />
-          ) : habitsCatalog.length === 0 ? (
-            <Text style={styles.habitsHint}>Could not load the habit list. Check your connection and reopen this screen.</Text>
-          ) : (
-            /* Compact 2-up grid so all habits stay on one screen */
-            <View style={styles.habitsGrid}>
-              {habitsCatalog.map((habit) => {
-                const habitId = habit.habitId ?? habit.id;
-                const isChecked = selectedHabitIds.includes(habitId);
-                return (
-                  <TouchableOpacity
-                    key={habitId}
-                    style={[styles.habitCell, isChecked && styles.habitCellActive]}
-                    onPress={() => toggleHabit(habitId)}
-                    activeOpacity={0.8}
-                  >
-                    <Icon
-                      name={isChecked ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                      size={17}
-                      color={isChecked ? BLUE : '#C4CEDE'}
-                    />
-                    <Text
-                      style={[styles.habitCellText, isChecked && styles.habitCellTextActive]}
-                      numberOfLines={2}
-                    >
-                      {habit.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-
-          <Text style={styles.habitsCount}>
-            {selectedHabitIds.length === 0
-              ? 'Tick at least one habit'
-              : `${selectedHabitIds.length} habit${selectedHabitIds.length > 1 ? 's' : ''} selected`}
-          </Text>
-
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>SECURITY</Text>
-          </View>
           <View style={styles.splitRow}>
             <Field
               icon="lock-outline" placeholder={isEditMode ? 'New Password' : 'Password'} value={password} onChangeText={setPassword}
@@ -1643,8 +1640,6 @@ const SignupScreen = ({ navigation, route }) => {
             />
           </View>
 
-          {/* Location last: pinning it is the final act of signup — we send the
-              worker to the map, then come straight back here and submit. */}
           {renderLocationCard()}
         </>
       );
@@ -1899,25 +1894,25 @@ const styles = StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 52,
-    borderRadius: 16,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: SURFACE,
     borderWidth: 1,
     borderColor: LINE,
-    paddingHorizontal: 14,
-    marginBottom: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
     elevation: 1,
     shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
   },
-  fieldIcon: { marginRight: 10 },
-  fieldInput: { flex: 1, fontSize: 14.5, color: INK, paddingVertical: 0, height: '100%' },
-  fieldInputText: { flex: 1, fontSize: 14.5, color: MUTED },
-  fieldInputMultiline: { height: 70, paddingTop: 12 },
-  bioField: { height: 88, alignItems: 'flex-start', paddingTop: 14 },
-  eyeBtn: { paddingLeft: 8 },
+  fieldIcon: { marginRight: 8 },
+  fieldInput: { flex: 1, fontSize: 13.5, color: INK, paddingVertical: 0, height: '100%' },
+  fieldInputText: { flex: 1, fontSize: 13.5, color: MUTED },
+  fieldInputMultiline: { height: 54, paddingTop: 8 },
+  bioField: { height: 54, alignItems: 'flex-start', paddingTop: 8 },
+  eyeBtn: { paddingLeft: 6 },
 
   splitRow: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
