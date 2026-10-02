@@ -119,7 +119,8 @@ const LoginScreen = ({ navigation }) => {
           console.log('🔄 Navigating to WorkerDashboardScreen');
           navigation.replace('WorkerDashboardScreen');
         } else if (userRole === 'Company') {
-          navigation.replace('WorkerDirectoryScreen');
+          console.log('🔄 Navigating to CompanyCourseDashboardScreen');
+          navigation.replace('CompanyCourseDashboardScreen');
         } else if (userRole === 'Police') {
           navigation.replace('PoliceVerificationPortal');
         } else {

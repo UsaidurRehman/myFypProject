@@ -18,8 +18,8 @@ const WorkerDashboardScreen = ({ navigation }) => {
     const [worker, setWorker] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Dynamic Tabs: 'Overview', 'Time Slots', 'Experience', 'Reviews'
-    const tabs = ['Overview', 'Time Slots', 'Experience', 'Reviews'];
+    // Profile sections. Skills appears before availability/time slots.
+    const tabs = ['Overview', 'Skills', 'Time Slots', 'Experience', 'Reviews'];
     const [activeTab, setActiveTab] = useState('Overview');
     const tabScrollViewRef = useRef(null);
 
@@ -430,6 +430,26 @@ const WorkerDashboardScreen = ({ navigation }) => {
             >
                 {/* 1. OVERVIEW TAB */}
                 <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.tabContentPadding}>
+                    {/* Course Management — intentionally first so it is immediately visible */}
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                        <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: '#1565C0', borderRadius: 16, padding: 15 }}
+                            onPress={() => navigation.navigate('WorkerCourseCatalogueScreen')}
+                        >
+                            <Icon name="school-outline" size={26} color="#FFFFFF" />
+                            <Text style={{ color: '#FFFFFF', fontWeight: '800', marginTop: 10 }}>Browse Courses</Text>
+                            <Text style={{ color: '#DCEBFF', fontSize: 11, marginTop: 3 }}>Enroll in company training</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: '#FFFFFF', borderColor: '#D9E5F3', borderWidth: 1, borderRadius: 16, padding: 15 }}
+                            onPress={() => navigation.navigate('WorkerMyCoursesScreen')}
+                        >
+                            <Icon name="certificate-outline" size={26} color="#1565C0" />
+                            <Text style={{ color: '#172033', fontWeight: '800', marginTop: 10 }}>My Learning</Text>
+                            <Text style={{ color: '#64748B', fontSize: 11, marginTop: 3 }}>Courses and certificates</Text>
+                        </TouchableOpacity>
+                    </View>
+
                     {/* Duty Status Card */}
                     <View style={styles.card}>
                         <View style={styles.cardRow}>
@@ -585,7 +605,96 @@ const WorkerDashboardScreen = ({ navigation }) => {
                     </TouchableOpacity>
                 </ScrollView>
 
-                {/* 2. TIME SLOTS TAB */}
+                {/* 2. SKILLS TAB */}
+                <ScrollView
+                    style={{ width: SCREEN_WIDTH }}
+                    contentContainerStyle={styles.tabContentPadding}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.card}>
+                        <View style={styles.cardRow}>
+                            <View style={[styles.iconCircleBg, { backgroundColor: '#EAF3FF' }]}>
+                                <Icon name="certificate-outline" size={21} color="#1565C0" />
+                            </View>
+                            <View style={{ flex: 1, marginLeft: 12 }}>
+                                <Text style={styles.cardTitle}>Professional Skills</Text>
+                                <Text style={styles.cardSubtext}>Your primary and secondary service expertise</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.lightBlueBtn}
+                                onPress={() => navigation.navigate('Signup', { isEdit: true, initialData: worker })}
+                            >
+                                <Icon name="pencil-outline" size={14} color="#1E64D3" />
+                                <Text style={[styles.lightBlueBtnText, { marginLeft: 4 }]}>Edit</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        <Text style={{ color: '#172033', fontSize: 14, fontWeight: '800', marginBottom: 4 }}>
+                            Primary Service
+                        </Text>
+                        <Text style={{ color: '#64748B', fontSize: 12, marginBottom: 12 }}>
+                            Your main professional category
+                        </Text>
+                        <View style={{ alignSelf: 'flex-start', backgroundColor: '#1565C0', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 14 }}>
+                            <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>
+                                {worker.role || 'General Worker'}
+                            </Text>
+                        </View>
+
+                        <Text style={{ color: '#172033', fontSize: 14, fontWeight: '800', marginBottom: 9 }}>
+                            Primary Skills
+                        </Text>
+                        {worker.primarySkills && worker.primarySkills.length > 0 ? (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+                                {worker.primarySkills.map((skill, index) => (
+                                    <View key={`${skill}-${index}`} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EAF3FF', borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 18, paddingHorizontal: 11, paddingVertical: 7 }}>
+                                        <Icon name="check-decagram" size={14} color="#1565C0" />
+                                        <Text style={{ color: '#0D47A1', fontWeight: '700', fontSize: 12, marginLeft: 5 }}>{skill}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        ) : (
+                            <Text style={[styles.emptyText, { textAlign: 'left', marginBottom: 18 }]}>No primary skills added.</Text>
+                        )}
+
+                        <View style={styles.divider} />
+                        <Text style={{ color: '#172033', fontSize: 14, fontWeight: '800', marginTop: 14, marginBottom: 4 }}>
+                            Secondary / Part-Time Services
+                        </Text>
+                        <Text style={{ color: '#64748B', fontSize: 12, marginBottom: 12 }}>
+                            Additional categories and services you can provide
+                        </Text>
+
+                        {worker.partTimeSkills && worker.partTimeSkills.length > 0 ? (
+                            worker.partTimeSkills.map((group, groupIndex) => (
+                                <View key={`${group.categoryName}-${groupIndex}`} style={{ backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 13, padding: 12, marginBottom: 10 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 9 }}>
+                                        <Icon name="briefcase-outline" size={17} color="#1565C0" />
+                                        <Text style={{ color: '#172033', fontWeight: '800', marginLeft: 7 }}>
+                                            {group.categoryName || 'Additional Service'}
+                                        </Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
+                                        {(group.skills || []).map((skill, index) => (
+                                            <View key={`${skill}-${index}`} style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D9E5F3', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}>
+                                                <Text style={{ color: '#475569', fontSize: 12, fontWeight: '600' }}>{skill}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            ))
+                        ) : (
+                            <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                                <Icon name="briefcase-off-outline" size={38} color="#CBD5E1" />
+                                <Text style={[styles.emptyText, { marginTop: 8 }]}>No secondary services added.</Text>
+                            </View>
+                        )}
+                    </View>
+                </ScrollView>
+
+                {/* 3. TIME SLOTS TAB */}
                 <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.tabContentPadding}>
                     <View style={styles.card}>
                         <View style={styles.cardRow}>
@@ -842,7 +951,7 @@ const styles = StyleSheet.create({
     underlineTabContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E5EA', marginBottom: 4 },
     underlineTabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
     underlineTabBtnActive: { borderBottomColor: '#1E64D3' },
-    underlineTabText: { fontSize: 13, fontWeight: '600', color: '#8E8E93' },
+    underlineTabText: { fontSize: 11, fontWeight: '600', color: '#8E8E93' },
     underlineTabTextActive: { color: '#1E64D3', fontWeight: 'bold' },
 
     // Cards

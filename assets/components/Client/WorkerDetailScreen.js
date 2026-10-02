@@ -215,19 +215,26 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                 <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     <Text style={styles.sectionTitle}>Trust & Verification</Text>
 
-                    <TouchableOpacity
-                        style={styles.companyBadgeButton}
-                        onPress={() => navigation.navigate('WorkerCertificationDetail', { workerId: worker.id || workerId })}
-                    >
-                        <Icon name="shield-check" size={22} color="#026597" />
-                        <View style={styles.badgeTextContainer}>
-                            <Text style={styles.companyBadgeTitle}>Verified Training</Text>
-                            <Text style={styles.companyBadgeSubtitle}>
-                                Certified by {worker.companyName || 'Proton Services'}
-                            </Text>
-                        </View>
-                        <Icon name="chevron-right" size={20} color="#026597" />
-                    </TouchableOpacity>
+                    {worker.isCompanyCertified ? (
+                        <TouchableOpacity
+                            style={styles.companyBadgeButton}
+                            onPress={() => navigation.navigate('WorkerCertificationDetail', {
+                                workerId: worker.id || workerId,
+                            })}
+                        >
+                            <Icon name="certificate" size={22} color="#026597" />
+                            <View style={styles.badgeTextContainer}>
+                                <Text style={styles.companyBadgeTitle}>Verified Training</Text>
+                                <Text style={styles.companyBadgeSubtitle}>
+                                    {worker.trainingCertificateTitle
+                                        ? `${worker.trainingCertificateTitle} · `
+                                        : ''}
+                                    Certified by {worker.companyName || 'Verified Company'}
+                                </Text>
+                            </View>
+                            <Icon name="chevron-right" size={20} color="#026597" />
+                        </TouchableOpacity>
+                    ) : null}
 
                     <TouchableOpacity
                         style={styles.policeAlertButton}

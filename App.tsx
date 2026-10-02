@@ -33,6 +33,13 @@ import CharacterCertificateScreen from './assets/components/Police/CharacterCert
 import Map from './assets/components/Map/Map.js'
 import Toast from 'react-native-toast-message';
 import ClientProfileScreen from './assets/components/Client/ClientProfileScreen.js'
+import CompanyCourseDashboardScreen from './assets/components/Company/CompanyCourseDashboardScreen.js';
+import CompanyDashboardScreen from './assets/components/Company/CompanyDashboardScreen.js';
+import CompanyCourseFormScreen from './assets/components/Company/CompanyCourseFormScreen.js';
+import CompanyCourseDetailScreen from './assets/components/Company/CompanyCourseDetailScreen.js';
+import WorkerCourseCatalogueScreen from './assets/components/Worker/WorkerCourseCatalogueScreen.js';
+import WorkerMyCoursesScreen from './assets/components/Worker/WorkerMyCoursesScreen.js';
+import CourseCertificateScreen from './assets/components/Worker/CourseCertificateScreen.js';
 const Stack = createStackNavigator();
 export default function App() {
   return (
@@ -72,6 +79,13 @@ export default function App() {
           <Stack.Screen name="CharacterCertificateScreen" component={CharacterCertificateScreen} />
           <Stack.Screen name="MapScreen" component={Map} />
           <Stack.Screen name="ClientProfileScreen" component={ClientProfileScreen} />
+          <Stack.Screen name="CompanyDashboardScreen" component={CompanyDashboardScreen} />
+          <Stack.Screen name="CompanyCourseDashboardScreen" component={CompanyCourseDashboardScreen} />
+          <Stack.Screen name="CompanyCourseFormScreen" component={CompanyCourseFormScreen} />
+          <Stack.Screen name="CompanyCourseDetailScreen" component={CompanyCourseDetailScreen} />
+          <Stack.Screen name="WorkerCourseCatalogueScreen" component={WorkerCourseCatalogueScreen} />
+          <Stack.Screen name="WorkerMyCoursesScreen" component={WorkerMyCoursesScreen} />
+          <Stack.Screen name="CourseCertificateScreen" component={CourseCertificateScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />

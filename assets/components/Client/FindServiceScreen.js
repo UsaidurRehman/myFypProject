@@ -239,6 +239,13 @@ const FindServiceScreen = ({ navigation, route }) => {
                                 </View>
                             ) : null}
 
+                            {item.isCompanyCertified ? (
+                                <View style={[styles.policeChip, { backgroundColor: '#EAF3FF', borderColor: '#93C5FD' }]}>
+                                    <Icon name="certificate" size={12} color="#1565C0" />
+                                    <Text style={[styles.policeChipText, { color: '#0D47A1' }]}>Certified</Text>
+                                </View>
+                            ) : null}
+
                             {secondaryCategories.map((cat, index) => (
                                 <View key={index} style={[styles.skillBadge, { backgroundColor: '#F1F3F4' }]}>
                                     <Text style={[styles.skillBadgeText, { color: '#5F6368' }]}>{cat}</Text>
