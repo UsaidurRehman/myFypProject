@@ -167,10 +167,10 @@ const FindServiceScreen = ({ navigation, route }) => {
             console.log('🗺️  Map navigation - Coordinates:', { lat, lng });
 
             console.log('✅ Navigating to MapScreen with', workers.length, 'workers');
-            navigation.navigate('MapScreen', { 
-                latitude: lat && !isNaN(parseFloat(lat)) ? parseFloat(lat) : null, 
+            navigation.navigate('MapScreen', {
+                latitude: lat && !isNaN(parseFloat(lat)) ? parseFloat(lat) : null,
                 longitude: lng && !isNaN(parseFloat(lng)) ? parseFloat(lng) : null,
-                workers 
+                workers
             });
         } catch (error) {
             console.error("❌ Error fetching coordinates:", error);
@@ -186,9 +186,9 @@ const FindServiceScreen = ({ navigation, route }) => {
 
     const renderWorkerCard = ({ item }) => {
         const city = extractCity(item.city);
-        
-        const secondaryCategories = item.categories && item.categories.length > 1 
-            ? item.categories.slice(1) 
+
+        const secondaryCategories = item.categories && item.categories.length > 1
+            ? item.categories.slice(1)
             : [];
 
         return (
@@ -333,7 +333,7 @@ const FindServiceScreen = ({ navigation, route }) => {
                     <Text style={styles.filterBtnText}>Filter</Text>
                     <Icon name="format-list-bulleted" size={18} color="#666" />
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.filterBtn}
                     onPress={handleMapNavigation}
                 >
@@ -380,24 +380,24 @@ const styles = StyleSheet.create({
     searchInput: { flex: 1, height: 45 },
     searchIcon: { marginLeft: 10 },
 
-    tabRow: { 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        paddingHorizontal: 20, 
-        marginBottom: 12, 
-        alignItems: 'center' 
+    tabRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        marginBottom: 12,
+        alignItems: 'center'
     },
-    tab: { 
-        flex: 1, 
-        paddingVertical: 6, 
-        paddingHorizontal: 2, 
-        borderRadius: 16, 
-        marginHorizontal: 3, 
-        backgroundColor: '#F5F5F5', 
-        borderWidth: 1, 
-        borderColor: '#DDD', 
-        alignItems: 'center', 
-        justifyContent: 'center' 
+    tab: {
+        flex: 1,
+        paddingVertical: 6,
+        paddingHorizontal: 2,
+        borderRadius: 16,
+        marginHorizontal: 3,
+        backgroundColor: '#F5F5F5',
+        borderWidth: 1,
+        borderColor: '#DDD',
+        alignItems: 'center',
+        justifyContent: 'center'
     },
     activeTab: { backgroundColor: '#1E64D3', borderColor: '#1E64D3' },
     tabText: { fontWeight: '600', color: '#333', fontSize: 11 },
@@ -412,21 +412,21 @@ const styles = StyleSheet.create({
     card: { backgroundColor: '#FFF', borderRadius: 24, padding: 16, marginBottom: 20, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, borderWidth: 1, borderColor: '#F0F0F0' },
 
     cardContent: { flexDirection: 'row' },
-    
+
     imageColumn: { width: 85, alignItems: 'center' },
     workerImage: { width: 85, height: 85, borderRadius: 20, backgroundColor: '#F8F9FA' },
-    ratingBadge: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        backgroundColor: '#FFF', 
-        paddingHorizontal: 8, 
-        paddingVertical: 3, 
-        borderRadius: 12, 
-        marginTop: -12, 
-        elevation: 4, 
-        shadowColor: '#000', 
-        shadowOffset: { width: 0, height: 2 }, 
-        shadowOpacity: 0.15, 
+    ratingBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 12,
+        marginTop: -12,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
         shadowRadius: 4,
         borderWidth: 0.5,
         borderColor: '#EEE'

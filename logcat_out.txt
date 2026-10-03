@@ -1,0 +1,4 @@
+--------- beginning of main
+10-02 21:21:06.244 30854  8406 I ReactNativeJS: Running "FYP_1" with {"rootTag":1,"initialProps":{},"fabric":true}
+10-02 21:21:07.099 30854  8406 W ReactNativeJS: SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context
+10-02 21:21:08.083 30854  8406 W ReactNativeJS: InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead.

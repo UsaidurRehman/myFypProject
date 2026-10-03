@@ -87,7 +87,10 @@ const SignupScreen = ({ navigation, route }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [hasAddedSkills, setHasAddedSkills] = useState(false);
-  const [skillsData, setSkillsData] = useState([]);
+  // skillsJsonData = [{ CategoryId, SkillsId }] — stored in Worker_Category junction table
+  const [skillsJsonData, setSkillsJsonData] = useState([]);
+  // experiencesData = [{ WorkAt, ExpDetail, Duration }] — stored in Experience table
+  const [experiencesData, setExperiencesData] = useState([]);
   const [gender, setGender] = useState('Male');
   const [bio, setBio] = useState('');
   // Habits: the list comes from the API (dbo.Habits) — the worker only ticks
@@ -173,9 +176,25 @@ const SignupScreen = ({ navigation, route }) => {
         const rawSalary = data.salary ? data.salary.toString() : '0';
         setSalary(rawSalary.replace('Not Set', '0'));
 
-        if (data.rawExperiences) {
-          setSkillsData(data.rawExperiences);
+        // Pre-fill skills (Worker_Category junction) for editing
+        if (Array.isArray(data.rawWorkerCategories) && data.rawWorkerCategories.length > 0) {
+          setSkillsJsonData(data.rawWorkerCategories.map(wc => ({
+            CategoryId: Number(wc.CategoryId ?? wc.categoryId),
+            SkillsId: Number(wc.SkillsId ?? wc.skillsId)
+          })));
           setHasAddedSkills(true);
+        } else if (Array.isArray(data.rawExperiences) && data.rawExperiences.length > 0) {
+          // Fallback for older API responses
+          setHasAddedSkills(true);
+        }
+
+        // Pre-fill raw experience records for editing
+        if (Array.isArray(data.rawExperiences)) {
+          setExperiencesData(data.rawExperiences.map(e => ({
+            WorkAt: e.WorkAt || e.workAt || '',
+            ExpDetail: e.ExpDetail || e.expDetail || '',
+            Duration: e.Duration || e.duration || ''
+          })));
         }
 
         // Pre-tick the habits already on the profile
@@ -214,27 +233,31 @@ const SignupScreen = ({ navigation, route }) => {
       if (route.params.bio !== undefined) setBio(route.params.bio);
       if (Array.isArray(route.params.habits)) setSelectedHabitIds(route.params.habits);
 
-      if (route.params.experiencesJson) {
+      // skillsJson = [{ CategoryId, SkillsId }] from AddSkillScreen (for Worker_Category)
+      if (route.params.skillsJson) {
         try {
-          setSkillsData(JSON.parse(route.params.experiencesJson));
+          setSkillsJsonData(JSON.parse(route.params.skillsJson));
         } catch (e) {
-          console.error(e);
+          console.error('[signup] skillsJson parse error:', e);
         }
       }
 
-      // Come back to the step the worker left from (AddSkills is only reachable
-      // from step 2) — never step 1. AddSkills used to hand back a STALE draft
-      // from an earlier map trip, whose values overwrote the freshly typed
-      // bio / email / salary; the draft is now taken on the way out, so it
-      // matches what was on screen.
+      // experiencesJson = [{ WorkAt, ExpDetail, Duration }] from AddSkillScreen (for Experience)
+      if (route.params.experiencesJson) {
+        try {
+          setExperiencesData(JSON.parse(route.params.experiencesJson));
+        } catch (e) {
+          console.error('[signup] experiencesJson parse error:', e);
+        }
+      }
+
       const backDraft = route.params.signupDraft;
       const backStep = Number(backDraft?.step);
       setStep(Number.isFinite(backStep) && backStep >= 2 ? backStep : 2);
 
-      // Consume it: a leftover draft/step in the route params is exactly what
-      // could re-apply later and bounce the form back to step 1.
       navigation.setParams({
         skillsCompleted: undefined,
+        skillsJson: undefined,
         experiencesJson: undefined,
         categoryId: undefined,
         signupDraft: undefined,
@@ -295,7 +318,8 @@ const SignupScreen = ({ navigation, route }) => {
     companyName,
     licenseNumber,
     hasAddedSkills,
-    skillsData,
+    skillsJsonData,
+    experiencesData,
     // habits survive both the AddSkills trip and the MapScreen trip
     habits: selectedHabitIds,
   });
@@ -316,7 +340,9 @@ const SignupScreen = ({ navigation, route }) => {
       name, age, phone, cnic, salary, email, address, password, confirmPassword,
       role, step, selectedImage, gender, bio,
       habits: selectedHabitIds,
-      existingExperiences: skillsData,
+      // Pass the separately tracked skills and experiences to AddSkillScreen
+      existingSkills: skillsJsonData,
+      existingExperiences: experiencesData,
       signupLocation: undefined,
       signupDraft: buildDraft()
     });
@@ -369,8 +395,15 @@ const SignupScreen = ({ navigation, route }) => {
       role: dataRole, name: dName, age: dAge, phone: dPhone, cnic: dCnic, salary: dSalary,
       email: dEmail, address: dAddress, password: dPassword, confirmPassword: dConfirmPassword,
       selectedImage: dImage, gender: dGender, bio: dBio, companyName: dCompanyName,
-      licenseNumber: dLicenseNumber, skillsData: dSkills, habits: dHabitsRaw
+      licenseNumber: dLicenseNumber,
+      skillsJsonData: dSkillsJson, experiencesData: dExperiences,
+      habits: dHabitsRaw
     } = data;
+
+    // dSkillsJson = [{ CategoryId, SkillsId }]  (Worker_Category records)
+    // dExperiences = [{ WorkAt, ExpDetail, Duration }]  (Experience records)
+    const dSkillsList = Array.isArray(dSkillsJson) ? dSkillsJson : [];
+    const dExpList = Array.isArray(dExperiences) ? dExperiences : [];
 
     // Ticked master-list habit ids, e.g. [1, 10, 17]
     const dHabits = Array.isArray(dHabitsRaw) ? dHabitsRaw : [];
@@ -407,8 +440,8 @@ const SignupScreen = ({ navigation, route }) => {
       return;
     }
 
-    if (dataRole === 'Worker' && dSkills.length === 0) {
-      NotificationHelper.showError("Please add at least one primary skill to proceed.");
+    if (dataRole === 'Worker' && dSkillsList.length === 0) {
+      NotificationHelper.showError("Please add at least one sub-skill to proceed.");
       submittingRef.current = false;
       return;
     }
@@ -476,7 +509,9 @@ const SignupScreen = ({ navigation, route }) => {
         formData.append('Age', dAge || "0");
         formData.append('Gender', dGender);
         formData.append('Bio', dBio);
-        formData.append('experiencesJson', JSON.stringify(dSkills));
+        // Send skills (Worker_Category junction records) separately from experience
+        formData.append('skillsJson', JSON.stringify(dSkillsList));
+        formData.append('experiencesJson', JSON.stringify(dExpList));
         // dHabits = the ticked master-list ids, e.g. [1,10,17].
         // While editing, only send this once the current habits were loaded.
         if (!isEditMode || habitsPrefilled) {
@@ -614,8 +649,8 @@ const SignupScreen = ({ navigation, route }) => {
       return;
     }
 
-    if (role === 'Worker' && skillsData.length === 0) {
-      NotificationHelper.showError("Please add at least one primary skill to proceed.");
+    if (role === 'Worker' && skillsJsonData.length === 0) {
+      NotificationHelper.showError("Please add at least one sub-skill to proceed.");
       return;
     }
 
@@ -663,7 +698,8 @@ const SignupScreen = ({ navigation, route }) => {
       if (draft.companyName !== undefined) setCompanyName(draft.companyName);
       if (draft.licenseNumber !== undefined) setLicenseNumber(draft.licenseNumber);
       if (draft.hasAddedSkills !== undefined) setHasAddedSkills(draft.hasAddedSkills);
-      if (draft.skillsData !== undefined) setSkillsData(draft.skillsData);
+      if (Array.isArray(draft.skillsJsonData)) setSkillsJsonData(draft.skillsJsonData);
+      if (Array.isArray(draft.experiencesData)) setExperiencesData(draft.experiencesData);
       if (Array.isArray(draft.habits)) setSelectedHabitIds(draft.habits);
 
       // NOTE: returning from the map only fills the pin in — it must NOT fire
@@ -724,7 +760,7 @@ const SignupScreen = ({ navigation, route }) => {
     }
     // step 2 — professional details, skills, habits, security & location
     if (!email.trim()) return "Please enter your email address.";
-    if (!isEditMode && skillsData.length === 0) return "Please add at least one primary skill.";
+    if (!isEditMode && skillsJsonData.length === 0) return "Please add at least one sub-skill.";
     if (!isEditMode && selectedHabitIds.length === 0) return "Please select at least one habit.";
     if (!isEditMode && !password) return "Please create a password.";
     if (password && password !== confirmPassword) return "Passwords do not match.";
@@ -894,13 +930,13 @@ const SignupScreen = ({ navigation, route }) => {
 
           <TouchableOpacity style={styles.field} onPress={goToSkills} activeOpacity={0.85}>
             <Icon
-              name={skillsData.length > 0 ? 'check-circle-outline' : 'plus-circle-outline'}
+              name={skillsJsonData.length > 0 ? 'check-circle-outline' : 'plus-circle-outline'}
               size={18}
-              color={skillsData.length > 0 ? '#16A34A' : BLUE}
+              color={skillsJsonData.length > 0 ? '#16A34A' : BLUE}
               style={styles.fieldIcon}
             />
-            <Text style={[styles.fieldInputText, skillsData.length > 0 && { color: INK }]}>
-              {skillsData.length > 0 ? `${skillsData.length} Skills Added` : 'Add Skills'}
+            <Text style={[styles.fieldInputText, skillsJsonData.length > 0 && { color: INK }]}>
+              {skillsJsonData.length > 0 ? `${skillsJsonData.length} Sub-Skill${skillsJsonData.length > 1 ? 's' : ''} Added` : 'Add Skills & Experience'}
             </Text>
             <Icon name="chevron-right" size={20} color="#B9C6DB" />
           </TouchableOpacity>
