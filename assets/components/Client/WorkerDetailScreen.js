@@ -6,7 +6,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
-import { API_DASHBOARD, SERVER_BASE } from '../../config';
+import { API_DASHBOARD, API_DIRECTORY, SERVER_BASE } from '../../config';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const API_BASE = API_DASHBOARD;
@@ -16,6 +16,10 @@ const WorkerDetailScreen = ({ navigation, route }) => {
     const [worker, setWorker] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState(0);
+
+    // Company training certificate (legacy company verification OR newest course
+    // certificate — whichever GetWorkerCertificateDetail resolves). null = none.
+    const [certification, setCertification] = useState(null);
 
     const horizontalScrollRef = useRef(null);
 
@@ -29,14 +33,28 @@ const WorkerDetailScreen = ({ navigation, route }) => {
         ...(worker?.habits && worker.habits.length > 0 ? ['Habits'] : []),
     ];
 
-    // Refetch when the screen regains focus, so after booking (or after the worker
-    // changes something) the footer button no longer shows a stale state.
-    useEffect(() => {
-        const unsubscribe = navigation.addListener('focus', () => {
-            fetchWorkerDetails();
-        });
-        return unsubscribe;
-    }, [navigation, fetchWorkerDetails]);
+    // Same endpoint WorkerCertificationDetail uses, so this card and that screen
+    // can never disagree. 404 simply means "no certificate" — not an error.
+    const fetchCertification = useCallback(async () => {
+        try {
+            const token = await AsyncStorage.getItem('userToken');
+            const response = await fetch(`${API_DIRECTORY}/GetWorkerCertificateDetail/${workerId}`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setCertification(data);
+            } else {
+                setCertification(null);
+            }
+        } catch (error) {
+            // Network hiccup: quietly treat as "not certified" rather than
+            // blocking the whole profile behind a toast.
+            console.warn('Certification fetch failed:', error);
+            setCertification(null);
+        }
+    }, [workerId]);
 
     const fetchWorkerDetails = useCallback(async () => {
         setIsLoading(true);
@@ -62,6 +80,19 @@ const WorkerDetailScreen = ({ navigation, route }) => {
             setIsLoading(false);
         }
     }, [workerId, navigation]);
+
+    // Refetch when the screen regains focus, so after booking (or after the worker
+    // changes something) the footer button no longer shows a stale state.
+    // NOTE: this effect MUST come after the useCallback declarations above —
+    // referencing them earlier threw "Cannot access 'fetchWorkerDetails' before
+    // initialization" and crashed the screen on open.
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            fetchWorkerDetails();
+            fetchCertification();
+        });
+        return unsubscribe;
+    }, [navigation, fetchWorkerDetails, fetchCertification]);
 
     const callLockRef = useRef(false);
 
@@ -215,7 +246,7 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                 <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     <Text style={styles.sectionTitle}>Trust & Verification</Text>
 
-                    {worker.isCompanyCertified ? (
+                    {certification ? (
                         <TouchableOpacity
                             style={styles.companyBadgeButton}
                             onPress={() => navigation.navigate('WorkerCertificationDetail', {
@@ -225,16 +256,26 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                             <Icon name="certificate" size={22} color="#026597" />
                             <View style={styles.badgeTextContainer}>
                                 <Text style={styles.companyBadgeTitle}>Verified Training</Text>
-                                <Text style={styles.companyBadgeSubtitle}>
-                                    {worker.trainingCertificateTitle
-                                        ? `${worker.trainingCertificateTitle} · `
+                                <Text style={styles.companyBadgeSubtitle} numberOfLines={1}>
+                                    {certification.certificateTitle
+                                        ? `${certification.certificateTitle} · `
                                         : ''}
-                                    Certified by {worker.companyName || 'Verified Company'}
+                                    Certified by {certification.companyName || 'Verified Company'}
                                 </Text>
                             </View>
                             <Icon name="chevron-right" size={20} color="#026597" />
                         </TouchableOpacity>
-                    ) : null}
+                    ) : (
+                        <View style={styles.noCertRow}>
+                            <Icon name="certificate-outline" size={22} color="#94A3B8" />
+                            <View style={styles.badgeTextContainer}>
+                                <Text style={styles.noCertTitle}>No Verified Training</Text>
+                                <Text style={styles.noCertSubtitle}>
+                                    This worker has no company training certificate yet
+                                </Text>
+                            </View>
+                        </View>
+                    )}
 
                     <TouchableOpacity
                         style={styles.policeAlertButton}
@@ -536,7 +577,7 @@ const styles = StyleSheet.create({
 
     statsContainer: {
         flexDirection: 'row',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         alignItems: 'center',
         backgroundColor: '#F1F5F9',
         borderRadius: 12,
@@ -546,7 +587,7 @@ const styles = StyleSheet.create({
     },
     statBox: {
         alignItems: 'center',
-        justify: 'center',
+        justifyContent: 'center',
         paddingHorizontal: 4
     },
     statLabel: {
@@ -577,8 +618,8 @@ const styles = StyleSheet.create({
     tabContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
     tabButton: { flex: 1, paddingVertical: 12, alignItems: 'center' },
     activeTabButton: { borderBottomWidth: 2, borderBottomColor: '#1E64D3' },
-    tabText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
-    activeTabText: { color: '#1E64D3', fontWeight: 'bold' },
+    tabText: { fontSize: 10, fontWeight: '600', color: '#64748B' },
+    activeTabText: { color: '#1E64D3', fontWeight: 'bold', fontSize: 11 },
 
     scrollContent: { padding: 16 },
 
@@ -586,6 +627,9 @@ const styles = StyleSheet.create({
     aboutDescription: { fontSize: 13, color: '#475569', lineHeight: 20 },
 
     companyBadgeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD', borderRadius: 12, padding: 12, marginBottom: 8 },
+    noCertRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, marginBottom: 8 },
+    noCertTitle: { color: '#64748B', fontSize: 13, fontWeight: '700' },
+    noCertSubtitle: { color: '#94A3B8', fontSize: 11 },
     policeAlertButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 12, padding: 12, marginBottom: 12 },
     badgeTextContainer: { flex: 1, marginLeft: 10 },
     companyBadgeTitle: { color: '#0369A1', fontSize: 13, fontWeight: '700' },

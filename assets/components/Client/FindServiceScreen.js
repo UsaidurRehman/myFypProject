@@ -71,11 +71,15 @@ const FindServiceScreen = ({ navigation, route }) => {
         }, [route.params?.appliedFilters])
     );
 
-    const getCategoryName = (selection) => {
+    // Memoized on categoryLookup so fetchWorkers below re-captures it when the
+    // categories arrive. Previously fetchWorkers (deps: [navigation]) closed over
+    // the first render's empty lookup forever, so category IDs coming back from
+    // the Filter screen were never translated to names.
+    const getCategoryName = useCallback((selection) => {
         if (!selection) return '';
         const key = selection.toString();
         return categoryLookup[key] || key;
-    };
+    }, [categoryLookup]);
 
     const fetchWorkers = useCallback(async (categoryTab, searchText, currentFilters) => {
         setIsLoading(true);
@@ -150,14 +154,14 @@ const FindServiceScreen = ({ navigation, route }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [navigation]);
+    }, [navigation, getCategoryName]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchWorkers(selectedCategory, search, allFilters);
         }, 300);
         return () => clearTimeout(timer);
-    }, [selectedCategory, search, allFilters]);
+    }, [selectedCategory, search, allFilters, fetchWorkers]);
 
     // Navigate to MapScreen
     const handleMapNavigation = async () => {

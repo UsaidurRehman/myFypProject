@@ -280,11 +280,17 @@ const SignupScreen = ({ navigation, route }) => {
       if (route.params.bio !== undefined) setBio(route.params.bio);
       if (Array.isArray(route.params.habits)) setSelectedHabitIds(route.params.habits);
 
+      // Restore skills/experiences that round-tripped through the habits screen
+      // (MyHabitsScreen spreads signupDraft back as top-level params). The old
+      // code here called setSkillsData(), a setter that no longer exists, so
+      // this block crashed whenever experiencesJson slipped through.
+      if (Array.isArray(route.params.skillsJsonData)) setSkillsJsonData(route.params.skillsJsonData);
+      if (Array.isArray(route.params.experiencesData)) setExperiencesData(route.params.experiencesData);
       if (route.params.experiencesJson) {
         try {
-          setSkillsData(JSON.parse(route.params.experiencesJson));
+          setExperiencesData(JSON.parse(route.params.experiencesJson));
         } catch (e) {
-          console.error(e);
+          console.error('[signup] experiencesJson parse error:', e);
         }
       }
 
@@ -355,7 +361,12 @@ const SignupScreen = ({ navigation, route }) => {
       name, age, phone, cnic, salary, email, address, password, confirmPassword,
       role, step, selectedImage, gender, bio,
       habits: selectedHabitIds,
-      existingExperiences: skillsData,
+      // Same param names goToSkills uses. The old code referenced `skillsData`,
+      // a variable that no longer exists (leftover of the rename into
+      // skillsJsonData/experiencesData) and crashed with "Property 'skillsData'
+      // doesn't exist" the moment the Habits row was tapped.
+      existingSkills: skillsJsonData,
+      existingExperiences: experiencesData,
       signupLocation: undefined,
       signupDraft: buildDraft()
     });
@@ -732,8 +743,8 @@ const SignupScreen = ({ navigation, route }) => {
   const headerSubtitle = isEditMode
     ? 'Update your information'
     : (showStepUi
-        ? (stepSubtitle[Math.min(Math.max(step, 1), WORKER_TOTAL_STEPS) - 1] || 'Basic Information')
-        : 'Basic Information');
+      ? (stepSubtitle[Math.min(Math.max(step, 1), WORKER_TOTAL_STEPS) - 1] || 'Basic Information')
+      : 'Basic Information');
 
   const goBack = () => {
     if (showStepUi && step > 1) setStep(step - 1);
