@@ -8,12 +8,17 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_DASHBOARD, SERVER_BASE } from '../../config';
 import NotificationHelper from '../Notification/NotificationHelper';
+import CriteriaReviewSection from '../helpers/CriteriaReviewSection';
+import CriteriaBreakdown from '../helpers/CriteriaBreakdown';
 
 const ResignationScreen = ({ route, navigation }) => {
     const { resignationId } = route.params || {};
     const [isLoading, setIsLoading] = useState(true);
     const [data, setData] = useState(null);
-    const [rating, setRating] = useState(3);
+    // Per-criterion scores: { [criteriaId]: score(1-5) }. The overall rating is
+    // derived on the server, so there is no single star input any more.
+    const [scores, setScores] = useState({});
+    const [requiredTotal, setRequiredTotal] = useState(0);
     const [remarks, setRemarks] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -22,9 +27,13 @@ const ResignationScreen = ({ route, navigation }) => {
     // worker's own review — written while resigning — locked this whole screen.)
     const isConfirmed = data?.isConfirmed === true;
 
-    // Before confirming the stars are the client's input; afterwards they show the
-    // rating that was actually stored.
-    const shownRating = isConfirmed ? (data?.clientReview?.rating ?? 0) : rating;
+    // Stars are read-only now; they only ever display the rating that was stored.
+    const shownRating = data?.clientReview?.rating ?? 0;
+
+    const handleScoreChange = (criteriaId, score) =>
+        setScores((prev) => ({ ...prev, [criteriaId]: score }));
+
+    const ratedCount = Object.values(scores).filter((v) => v > 0).length;
 
     useEffect(() => {
         if (!resignationId) {
@@ -61,6 +70,14 @@ const ResignationScreen = ({ route, navigation }) => {
             NotificationHelper.showError("Please enter some remarks before confirming.");
             return;
         }
+        if (requiredTotal === 0) {
+            NotificationHelper.showError("Review criteria are still loading. Please wait a moment.");
+            return;
+        }
+        if (ratedCount < requiredTotal) {
+            NotificationHelper.showError(`Please rate every criterion (${ratedCount}/${requiredTotal} rated).`);
+            return;
+        }
 
         setIsSubmitting(true);
         try {
@@ -73,8 +90,11 @@ const ResignationScreen = ({ route, navigation }) => {
                 },
                 body: JSON.stringify({
                     InterviewId: data.interviewId,
-                    Rating: rating,
-                    Comment: remarks
+                    Comment: remarks,
+                    CriteriaScores: Object.entries(scores).map(([criteriaId, score]) => ({
+                        CriteriaId: Number(criteriaId),
+                        Score: score
+                    }))
                 })
             });
 
@@ -94,30 +114,18 @@ const ResignationScreen = ({ route, navigation }) => {
         }
     };
 
-    const renderStars = (size = 30) => (
+    // Read-only star display; pass the value to show (defaults to the stored
+    // client review). The tappable single-star input is gone — criteria input is
+    // handled by CriteriaReviewSection below.
+    const renderStars = (size = 30, value = shownRating) => (
         <View style={styles.starRow}>
             {[1, 2, 3, 4, 5].map((star) => (
-                isConfirmed ? (
-                    <Icon
-                        key={star}
-                        name={star <= shownRating ? 'star' : 'star-outline'}
-                        size={size}
-                        color={star <= shownRating ? '#FFC107' : '#D0D5DD'}
-                    />
-                ) : (
-                    <TouchableOpacity
-                        key={star}
-                        onPress={() => setRating(star)}
-                        activeOpacity={0.7}
-                        style={styles.starTap}
-                    >
-                        <Icon
-                            name={star <= shownRating ? 'star' : 'star-outline'}
-                            size={size}
-                            color={star <= shownRating ? '#FFC107' : '#D0D5DD'}
-                        />
-                    </TouchableOpacity>
-                )
+                <Icon
+                    key={star}
+                    name={star <= value ? 'star' : 'star-outline'}
+                    size={size}
+                    color={star <= value ? '#FFC107' : '#D0D5DD'}
+                />
             ))}
         </View>
     );
@@ -228,7 +236,7 @@ const ResignationScreen = ({ route, navigation }) => {
                         </View>
 
                         <View style={styles.reviewMetaRow}>
-                            {renderStars(16)}
+                            {renderStars(16, Number(data.workerReview.rating || 0))}
                             <Text style={styles.reviewRatingText}>
                                 {Number(data.workerReview.rating || 0).toFixed(1)}
                             </Text>
@@ -240,6 +248,8 @@ const ResignationScreen = ({ route, navigation }) => {
                                 &quot;{data.workerReview.comment}&quot;
                             </Text>
                         ) : null}
+
+                        <CriteriaBreakdown criteria={data.workerReview.criteria} />
 
                         {data.workerReview.workedPeriod ? (
                             <View style={styles.workedRow}>
@@ -280,6 +290,8 @@ const ResignationScreen = ({ route, navigation }) => {
                                 </Text>
                             ) : null}
 
+                            <CriteriaBreakdown criteria={data.clientReview?.criteria} />
+
                             <View style={styles.lockNote}>
                                 <Icon name="lock-outline" size={13} color="#15803D" />
                                 <Text style={styles.lockNoteText}>
@@ -292,10 +304,15 @@ const ResignationScreen = ({ route, navigation }) => {
                     ) : (
                         <View>
                             <Text style={styles.reviewHint}>
-                                Tap a star to rate {data.workerName}, then write your remarks.
+                                Rate each criterion for {data.workerName}, then write your remarks.
                             </Text>
 
-                            <View style={styles.reviewMetaRow}>{renderStars(30)}</View>
+                            <CriteriaReviewSection
+                                interviewId={data.interviewId}
+                                scores={scores}
+                                onScoreChange={handleScoreChange}
+                                onLoaded={setRequiredTotal}
+                            />
 
                             <TextInput
                                 style={styles.remarksInput}

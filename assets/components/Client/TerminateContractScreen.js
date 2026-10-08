@@ -8,17 +8,26 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SERVER_BASE, API_DASHBOARD } from '../../config';
 import NotificationHelper from '../Notification/NotificationHelper';
+import CriteriaReviewSection from '../helpers/CriteriaReviewSection';
 
 const TerminateContractScreen = ({ navigation, route }) => {
     const { workerId, interviewId } = route.params;
 
     const [reason, setReason] = useState('');
     const [remarks, setRemarks] = useState('');
-    const [rating, setRating] = useState(0);
+    // Per-criterion scores: { [criteriaId]: score(1-5) } — the overall rating is
+    // computed on the server from these, so there is no single star input any more.
+    const [scores, setScores] = useState({});
+    const [requiredTotal, setRequiredTotal] = useState(0);
     const [isConfirmed, setIsConfirmed] = useState(false);
     const [worker, setWorker] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleScoreChange = (criteriaId, score) =>
+        setScores((prev) => ({ ...prev, [criteriaId]: score }));
+
+    const ratedCount = Object.values(scores).filter((v) => v > 0).length;
 
     useEffect(() => {
         fetchWorkerDetails();
@@ -50,8 +59,12 @@ const TerminateContractScreen = ({ navigation, route }) => {
             NotificationHelper.showError("Please enter a termination reason");
             return;
         }
-        if (rating === 0) {
-            NotificationHelper.showError("Please provide a rating for the worker");
+        if (requiredTotal === 0) {
+            NotificationHelper.showError("Review criteria are still loading. Please wait a moment.");
+            return;
+        }
+        if (ratedCount < requiredTotal) {
+            NotificationHelper.showError(`Please rate every criterion (${ratedCount}/${requiredTotal} rated).`);
             return;
         }
         if (!isConfirmed) {
@@ -66,7 +79,10 @@ const TerminateContractScreen = ({ navigation, route }) => {
                 InterviewId: interviewId,
                 Reason: reason,
                 Remarks: remarks,
-                Rating: rating
+                CriteriaScores: Object.entries(scores).map(([criteriaId, score]) => ({
+                    CriteriaId: Number(criteriaId),
+                    Score: score
+                }))
             };
 
             const response = await fetch(`${SERVER_BASE}/api/Dashboard/TerminateContract`, {
@@ -145,18 +161,12 @@ const TerminateContractScreen = ({ navigation, route }) => {
                 </View>
 
                 <View style={styles.remarksCard}>
-                    <Text style={[styles.label, { marginBottom: 15 }]}>Rate their service</Text>
-                    <View style={styles.starRow}>
-                        {[1, 2, 3, 4, 5].map((star) => (
-                            <TouchableOpacity key={star} onPress={() => setRating(star)}>
-                                <Icon
-                                    name={star <= rating ? "star" : "star-outline"}
-                                    size={36}
-                                    color={star <= rating ? "#FFD700" : "#CCC"}
-                                />
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                    <CriteriaReviewSection
+                        interviewId={interviewId}
+                        scores={scores}
+                        onScoreChange={handleScoreChange}
+                        onLoaded={setRequiredTotal}
+                    />
                     <TextInput
                         style={[styles.inputField, { height: 80, marginTop: 15 }]}
                         placeholder="Add additional remarks/feedback"
@@ -300,4 +310,4 @@ const styles = StyleSheet.create({
     cancelText: { fontSize: 16, fontWeight: '600', color: '#666' }
 });
 
-export default TerminateContractScreen;
+export default TerminateContractScreen;

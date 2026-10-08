@@ -7,6 +7,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { API_DASHBOARD, API_DIRECTORY, SERVER_BASE } from '../../config';
+import ReviewCard from '../helpers/ReviewCard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const API_BASE = API_DASHBOARD;
@@ -381,6 +382,8 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                                 text={rev.comment}
                                 date={rev.date}
                                 workedPeriod={rev.workedPeriod}
+                                endType={rev.endType}
+                                criteria={rev.criteria}
                                 onNamePress={() => {
                                     if (rev.clientId) {
                                         navigation.navigate('ClientProfileScreen', {
@@ -504,34 +507,6 @@ const ExperienceItem = ({ title, period, bullets, isActive }) => (
                 <Text key={i} style={styles.bulletText}>{b}</Text>
             ))}
         </View>
-    </View>
-);
-
-const ReviewCard = ({ name, rating, date, text, workedPeriod, onNamePress }) => (
-    <View style={styles.reviewCard}>
-        <View style={styles.rowBetween}>
-            <TouchableOpacity onPress={onNamePress}>
-                <Text style={[styles.reviewName, { textDecorationLine: 'underline' }]}>{name}</Text>
-            </TouchableOpacity>
-            <View style={styles.starsRow}>
-                {[1, 2, 3, 4, 5].map(i => (
-                    <Icon
-                        key={i}
-                        name={i <= rating ? "star" : "star-outline"}
-                        size={14}
-                        color={i <= rating ? "#FFD700" : "#CCC"}
-                    />
-                ))}
-            </View>
-        </View>
-        <Text style={styles.reviewDuration}>{date}</Text>
-        {workedPeriod ? (
-            <View style={styles.reviewWorkedRow}>
-                <Icon name="briefcase-outline" size={11} color="#1E64D3" />
-                <Text style={styles.reviewWorkedText}>Worked: {workedPeriod}</Text>
-            </View>
-        ) : null}
-        <Text style={styles.reviewText}>"{text}"</Text>
     </View>
 );
 

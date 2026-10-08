@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { SERVER_BASE, API_DASHBOARD } from '../../config';
+import ReviewCard from '../helpers/ReviewCard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -778,42 +779,18 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         {loadingReviews ? (
                             <ActivityIndicator size="small" color="#1E64D3" style={{ marginVertical: 20 }} />
                         ) : reviewsList && reviewsList.length > 0 ? (
-                            reviewsList.map((item, index) => {
-                                const reviewerName = item.reviewerName || item.name || item.clientName || 'Customer';
-                                const starsGiven = Math.round(Number(item.rating) || 0);
-                                return (
-                                    <View key={item.id || index} style={styles.inlineReviewCard}>
-                                        <View style={styles.reviewHeaderRow}>
-                                            <View style={styles.reviewUserRow}>
-                                                <View style={styles.reviewAvatarPlaceholder}>
-                                                    <Text style={styles.reviewAvatarText}>
-                                                        {reviewerName.charAt(0).toUpperCase()}
-                                                    </Text>
-                                                </View>
-                                                <View>
-                                                    <Text style={styles.clientNameText}>{reviewerName}</Text>
-                                                    <Text style={styles.reviewDateText}>
-                                                        {item.workedPeriod ? `Worked: ${item.workedPeriod}` : (item.date || 'Recent')}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                            <View style={styles.starsRow}>
-                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                    <Icon
-                                                        key={star}
-                                                        name={star <= starsGiven ? "star" : "star-outline"}
-                                                        size={16}
-                                                        color={star <= starsGiven ? "#FFD700" : "#E0E0E0"}
-                                                    />
-                                                ))}
-                                            </View>
-                                        </View>
-                                        <Text style={styles.reviewCommentText}>
-                                            {item.comment || item.reviewText || "No detailed comment provided."}
-                                        </Text>
-                                    </View>
-                                );
-                            })
+                            reviewsList.map((item, index) => (
+                                <ReviewCard
+                                    key={item.id || index}
+                                    name={item.reviewerName || item.name || item.clientName || 'Customer'}
+                                    rating={Number(item.rating) || 0}
+                                    date={item.date || 'Recent'}
+                                    workedPeriod={item.workedPeriod}
+                                    endType={item.endType}
+                                    criteria={item.criteria}
+                                    text={item.comment || item.reviewText || ''}
+                                />
+                            ))
                         ) : (
                             <View style={styles.emptyReviewsContainer}>
                                 <Icon name={reviewsError ? "wifi-off" : "message-draw"} size={40} color="#D1D1D6" />
