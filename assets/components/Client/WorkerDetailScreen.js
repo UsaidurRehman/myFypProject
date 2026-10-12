@@ -391,7 +391,7 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                                             id: rev.clientId
                                         });
                                     } else {
-                                        console.warn('Client ID is missing for this review.');
+                                        NotificationHelper.showError('Client profile unavailable.');
                                     }
                                 }}
                             />

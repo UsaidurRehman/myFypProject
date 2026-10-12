@@ -789,6 +789,16 @@ const WorkerDashboardScreen = ({ navigation }) => {
                                     endType={item.endType}
                                     criteria={item.criteria}
                                     text={item.comment || item.reviewText || ''}
+                                    onNamePress={() => {
+                                        if (item.clientId) {
+                                            navigation.navigate('ClientProfileScreen', {
+                                                clientId: item.clientId,
+                                                id: item.clientId
+                                            });
+                                        } else {
+                                            NotificationHelper.showError('Client profile unavailable.');
+                                        }
+                                    }}
                                 />
                             ))
                         ) : (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     StyleSheet, View, Text, ScrollView, Image, TextInput,
     TouchableOpacity, SafeAreaView, StatusBar, ActivityIndicator
@@ -16,6 +16,11 @@ const ActiveRequestScreen = ({ navigation }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('All');
     const [interactingIds, setInteractingIds] = useState([]);
+    const [approvingIds, setApprovingIds] = useState([]);
+    // Hard lock against a same-instant double tap. React state updates are async, so two
+    // rapid taps can both pass the approvingIds guard before the component re-renders;
+    // the ref is synchronous, so the second tap is always rejected.
+    const approveLockRef = useRef(new Set());
 
     const sortRequestsByInterviewIdDesc = (list = []) => {
         return [...list].sort((a, b) => {
@@ -52,8 +57,9 @@ const ActiveRequestScreen = ({ navigation }) => {
     }, []);
 
     const handleApprove = async (requestId, addressPayload) => {
-        if (interactingIds.includes(requestId)) return;
-        setInteractingIds(prev => [...prev, requestId]);
+        if (approveLockRef.current.has(requestId)) return;
+        approveLockRef.current.add(requestId);
+        setApprovingIds(prev => (prev.includes(requestId) ? prev : [...prev, requestId]));
 
         try {
             const token = await AsyncStorage.getItem('userToken');
@@ -86,7 +92,8 @@ const ActiveRequestScreen = ({ navigation }) => {
         } catch (error) {
             NotificationHelper.showError('Connection error occurred during approval.');
         } finally {
-            setInteractingIds(prev => prev.filter(id => id !== requestId));
+            approveLockRef.current.delete(requestId);
+            setApprovingIds(prev => prev.filter(id => id !== requestId));
         }
     };
 
@@ -193,12 +200,17 @@ const ActiveRequestScreen = ({ navigation }) => {
                 ) : (
                     filteredRequests.map((item) => {
                         const isProcessing = interactingIds.includes(item.interviewId);
+                        const isApproving = approvingIds.includes(item.interviewId);
 
                         const workerDecision = item.workerDecision;
                         const hiringDecision = item.hiring?.hiringDecision ?? item.hiringStatus;
-                        const offerSent = norm === 'approved';
+                        // NOTE: `rawStatus`/`norm` MUST be computed before `offerSent` reads `norm`.
+                        // The old order read `norm` before its declaration (hoisted to undefined by
+                        // Babel's const->var), so `offerSent` was always false and an approved card
+                        // never left the "awaiting your approval" branch.
                         const rawStatus = (item.status || workerDecision || '').toString().trim();
                         const norm = rawStatus.toLowerCase();
+                        const offerSent = norm === 'approved';
                         const isResigned = norm.includes('resign');
                         const isTerminated = norm.includes('terminate');
                         const isRejected = norm.includes('reject');
@@ -284,14 +296,19 @@ const ActiveRequestScreen = ({ navigation }) => {
                                         <Text style={[styles.subtextLabel, { color: subtextColor }]}>{subtext}</Text>
                                     </View>
                                     <View style={styles.actionCol}>
-                                        {isProcessing ? (
+                                        {isApproving ? (
+                                            // Just tapped / request in flight: grey, unclickable, "Accepted"
+                                            <View style={styles.approveBtnDisabled}>
+                                                <Text style={styles.approveBtnDisabledText}>Accepted</Text>
+                                            </View>
+                                        ) : isProcessing ? (
                                             <ActivityIndicator size="small" color="#1E64D3" />
                                         ) : (
                                             <>
                                                 {isFinalCard ? null : workerDecision === 'Accepted' && offerSent ? (
-                                                    <View style={styles.approvedStateBtn}>
-                                                        <Icon name="check-circle" size={14} color="#FFFFFF" />
-                                                        <Text style={styles.approvedStateText}>Accepted</Text>
+                                                    // Approved: grey, unclickable, "Accepted"
+                                                    <View style={styles.approveBtnDisabled}>
+                                                        <Text style={styles.approveBtnDisabledText}>Accepted</Text>
                                                     </View>
                                                 ) : canApprove ? (
                                                     <TouchableOpacity

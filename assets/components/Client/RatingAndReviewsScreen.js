@@ -13,6 +13,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_DASHBOARD } from '../../config';
+import NotificationHelper from '../Notification/NotificationHelper';
 
 const RatingAndReviewsScreen = ({ navigation, route }) => {
     const { workerId, initialRating, initialReviewCount } = route.params || {};
@@ -133,7 +134,7 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
                                                         id: item.clientId
                                                     });
                                                 } else {
-                                                    console.warn("Client ID is missing for this review.");
+                                                    NotificationHelper.showError('Client profile unavailable.');
                                                 }
                                             }}
                                         >

@@ -59,7 +59,15 @@ export default function ReviewCard({
   const badge = resolveEndBadge(endType);
 
   const nameEl = (
-    <Text style={[styles.name, { color: accentColor }]}>{name}</Text>
+    <Text
+      style={[
+        styles.name,
+        { color: accentColor },
+        onNamePress ? { textDecorationLine: 'underline' } : null,
+      ]}
+    >
+      {name}
+    </Text>
   );
 
   return (
