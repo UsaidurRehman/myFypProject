@@ -108,10 +108,7 @@ const UserDashboard = ({ navigation }) => {
           throw new Error('The dashboard response was invalid. Please retry.');
         }
         const list = sortWorkersByInterviewIdDesc(data.hiredWorkers);
-        const activeWorkers = list.filter(w => {
-          const s = (w.status || '').toString().toLowerCase();
-          return !s.includes('terminate') && !s.includes('resign');
-        });
+        const activeWorkers = list.filter(w => !isTerminatedWorker(w));
 
         setWorkers(list);
         setHiredCount(activeWorkers.length);
@@ -148,10 +145,12 @@ const UserDashboard = ({ navigation }) => {
     navigation.replace('Login');
   };
 
-  const isTerminatedWorker = (item) => {
-    const s = (item.status || '').toString().trim().toLowerCase();
-    return s.includes('terminate') || s.includes('resign');
-  };
+  const normalizedStatus = item => (item.status || '').toString().trim().toLowerCase().replace(/[\s_-]+/g, '');
+  const isPendingResignation = item => item.type === 'alert' ||
+    ['resignationpending', 'pendingresignation'].includes(normalizedStatus(item));
+  const isTerminatedWorker = item => !isPendingResignation(item) &&
+    (['terminated', 'resigned', 'completed'].includes(normalizedStatus(item)) ||
+      ['terminated', 'resigned', 'completed'].includes(item.type));
 
   const activeWorkersList = workers.filter(w => !isTerminatedWorker(w));
   const pastWorkersList = workers.filter(w => isTerminatedWorker(w));
@@ -166,11 +165,16 @@ const UserDashboard = ({ navigation }) => {
     const rawStatus = (item.status || '').toString();
     const statusNorm = rawStatus.trim().toLowerCase();
 
+    const pendingResignation = isPendingResignation(item);
     let displayStatus = 'On Work';
-    if (statusNorm.includes('resign')) {
+    if (pendingResignation) {
+      displayStatus = 'Resignation Pending';
+    } else if (statusNorm.includes('resign')) {
       displayStatus = 'Resigned';
     } else if (statusNorm.includes('terminate')) {
       displayStatus = 'Terminated';
+    } else if (statusNorm.includes('complet')) {
+      displayStatus = 'Completed';
     }
 
     const isPast = isTerminatedWorker(item);
@@ -195,12 +199,14 @@ const UserDashboard = ({ navigation }) => {
           <View style={styles.workerInfo}>
             <Text style={styles.workerName} numberOfLines={1}>{item.name}</Text>
             <Text style={styles.workerCaption} numberOfLines={1}>
-              {isPast ? 'Contract closed' : 'Working with you'}
+              {isPast ? 'Contract closed' : pendingResignation ? 'Still working during the notice period' : 'Working with you'}
             </Text>
           </View>
 
-          <View style={[styles.statusPill, isPast ? styles.resignedPill : styles.activePill]}>
-            <Text style={[styles.statusPillText, isPast ? styles.resignedPillText : styles.activePillText]}>
+          <View testID={pendingResignation ? `pending-resignation-${item.interviewId}` : undefined}
+            style={[styles.statusPill, pendingResignation ? styles.pendingResignationPill : isPast ? styles.resignedPill : styles.activePill]}>
+            {pendingResignation && <Icon name="alert-circle-outline" size={13} color="#B45309" />}
+            <Text style={[styles.statusPillText, pendingResignation ? styles.pendingResignationText : isPast ? styles.resignedPillText : styles.activePillText]}>
               {displayStatus}
             </Text>
           </View>
@@ -462,6 +468,8 @@ const styles = StyleSheet.create({
     workerCaption: { fontSize: 11.5, color: '#94A3B8', marginTop: 2 },
 
     statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, flexShrink: 0 },
+    pendingResignationPill: { backgroundColor: '#FFF7ED', flexDirection: 'row', alignItems: 'center', gap: 4 },
+    pendingResignationText: { color: '#B45309' },
     activePill: { backgroundColor: '#DCFCE7' },
     activePillText: { fontSize: 11, fontWeight: '800', color: '#166534' },
     resignedPill: { backgroundColor: '#FEF3C7' },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     StyleSheet, View, Text, Image, TouchableOpacity,
     TextInput, SafeAreaView, ScrollView, StatusBar,
@@ -23,10 +23,16 @@ const ResignationScreen = ({ route, navigation }) => {
     const [remarks, setRemarks] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // "Confirmed" now means the CLIENT has confirmed + reviewed this contract.
-    // (The API used to answer this off ANY review row for the interview, so the
-    // worker's own review — written while resigning — locked this whole screen.)
+    // Acceptance and a saved Client review are separate. Automatic acceptance
+    // must not invent a rating or prevent the Client from reviewing later.
+    // Keep isConfirmed only as a fallback for older responses/history.
     const isConfirmed = data?.isConfirmed === true;
+    const isAccepted = typeof data?.isAccepted === 'boolean' ? data.isAccepted : isConfirmed;
+    const hasClientReview = data?.reviewSubmitted === true || !!data?.clientReview;
+    const canAccept = typeof data?.canAccept === 'boolean' ? data.canAccept : !isConfirmed;
+    const canSubmit = canAccept || (isAccepted && !hasClientReview);
+    const submittingRef = useRef(false);
+    const detailVersion = useRef(0);
 
     // Stars are read-only now; they only ever display the rating that was stored.
     const shownRating = data?.clientReview?.rating ?? 0;
@@ -42,45 +48,55 @@ const ResignationScreen = ({ route, navigation }) => {
             navigation.goBack();
             return;
         }
+        setData(null); setScores({}); setRemarks(''); setRequiredTotal(0);
+        setIsLoading(true); submittingRef.current = false; setIsSubmitting(false);
         fetchResignationDetail();
+        return () => { detailVersion.current++; };
     }, [resignationId]);
 
     const fetchResignationDetail = async () => {
+        const version = ++detailVersion.current;
         try {
             const token = await AsyncStorage.getItem('userToken');
             const response = await fetch(`${API_DASHBOARD}/GetResignationDetail/${resignationId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (version !== detailVersion.current) return;
             if (response.ok) {
                 const json = await response.json();
+                if (version !== detailVersion.current) return;
                 setData(json);
             } else {
                 NotificationHelper.showError("Failed to load details.");
                 navigation.goBack();
             }
         } catch (error) {
+            if (version !== detailVersion.current) return;
             console.error(error);
             NotificationHelper.showError("Network error.");
         } finally {
-            setIsLoading(false);
+            if (version === detailVersion.current) setIsLoading(false);
         }
     };
 
     const handleConfirmResignation = async () => {
-        if (!remarks.trim()) {
+        if (submittingRef.current || !data?.interviewId || !canSubmit) return;
+        if (!hasClientReview && !remarks.trim()) {
             NotificationHelper.showError("Please enter some remarks before confirming.");
             return;
         }
-        if (requiredTotal === 0) {
+        if (!hasClientReview && requiredTotal === 0) {
             NotificationHelper.showError("Review criteria are still loading. Please wait a moment.");
             return;
         }
-        if (ratedCount < requiredTotal) {
+        if (!hasClientReview && ratedCount < requiredTotal) {
             NotificationHelper.showError(`Please rate every criterion (${ratedCount}/${requiredTotal} rated).`);
             return;
         }
 
+        submittingRef.current = true;
         setIsSubmitting(true);
+        const version = detailVersion.current;
         try {
             const token = await AsyncStorage.getItem('userToken');
             const response = await fetch(`${API_DASHBOARD}/ConfirmResignation`, {
@@ -91,6 +107,7 @@ const ResignationScreen = ({ route, navigation }) => {
                 },
                 body: JSON.stringify({
                     InterviewId: data.interviewId,
+                    ResignationId: data.resignationId,
                     Comment: remarks,
                     CriteriaScores: Object.entries(scores).map(([criteriaId, score]) => ({
                         CriteriaId: Number(criteriaId),
@@ -99,8 +116,9 @@ const ResignationScreen = ({ route, navigation }) => {
                 })
             });
 
+            if (version !== detailVersion.current) return;
             if (response.ok) {
-                NotificationHelper.showSuccess("Resignation confirmed. Your review of the worker was saved.");
+                NotificationHelper.showSuccess(isAccepted ? "Your review of the worker was saved." : "Resignation confirmed. Your review of the worker was saved.");
                 // Back to the list, which refetches on focus — the row moves to Completed.
                 navigation.navigate('ResignationsScreen');
             } else {
@@ -111,7 +129,7 @@ const ResignationScreen = ({ route, navigation }) => {
             console.error(error);
             NotificationHelper.showError("Server error.");
         } finally {
-            setIsSubmitting(false);
+            if (version === detailVersion.current) { submittingRef.current = false; setIsSubmitting(false); }
         }
     };
 
@@ -175,6 +193,15 @@ const ResignationScreen = ({ route, navigation }) => {
                     </View>
                 </View>
 
+                {data.acceptanceMode === 'Automatic' && (
+                    <View style={styles.noticeCard} testID="auto-accepted-resignation">
+                        <View style={styles.noticeBody}>
+                            <Text style={styles.noticeStatusLabel}>Automatically accepted</Text>
+                            <Text style={styles.reviewHint}>The seven-day notice period ended. This worker is now in Past. {hasClientReview ? 'Your review is saved.' : 'You can still submit your rating and review below.'}</Text>
+                        </View>
+                    </View>
+                )}
+
                 {/* ── Notice period ── */}
                 <View style={styles.noticeCard}>
                     <View style={styles.noticeBlueHeader}>
@@ -183,7 +210,7 @@ const ResignationScreen = ({ route, navigation }) => {
                             <Text style={styles.noticeHeaderDays}>{data.totalNoticeDays} Days Total</Text>
                         </View>
                         <View style={styles.noticeBadge}>
-                            <Text style={styles.noticeBadgeText}>{data.remainingDays} left</Text>
+                            <Text style={styles.noticeBadgeText}>{isAccepted ? 'Accepted' : `${data.remainingDays} left`}</Text>
                         </View>
                     </View>
                     <View style={styles.noticeBody}>
@@ -206,8 +233,8 @@ const ResignationScreen = ({ route, navigation }) => {
                             <Icon name="calendar-check-outline" size={16} color="#1E64D3" />
                         </View>
                         <View style={styles.infoTextCol}>
-                            <Text style={styles.infoLabel}>Last Working Day</Text>
-                            <Text style={styles.infoValue}>{data.lastWorkingDate}</Text>
+                            <Text style={styles.infoLabel}>{data.acceptedAtUtc ? 'Job Ended' : data.noticeEndsAtUtc ? 'Notice Deadline' : 'Last Working Day'}</Text>
+                            <Text style={styles.infoValue}>{data.acceptedAtUtc ? new Date(data.acceptedAtUtc).toLocaleString() : data.noticeEndsAtUtc ? new Date(data.noticeEndsAtUtc).toLocaleString() : data.lastWorkingDate}</Text>
                         </View>
                     </View>
 
@@ -270,7 +297,7 @@ const ResignationScreen = ({ route, navigation }) => {
                 <View style={styles.reviewCard}>
                     <View style={styles.reviewTopRow}>
                         <Text style={styles.reviewCardTitle}>Your Review</Text>
-                        {isConfirmed ? (
+                        {hasClientReview ? (
                             <View style={styles.savedChip}>
                                 <Icon name="check-circle" size={12} color="#15803D" />
                                 <Text style={styles.savedChipText}>Saved</Text>
@@ -278,7 +305,7 @@ const ResignationScreen = ({ route, navigation }) => {
                         ) : null}
                     </View>
 
-                    {isConfirmed ? (
+                    {hasClientReview ? (
                         <View>
                             <View style={styles.reviewMetaRow}>
                                 {renderStars(18)}
@@ -306,13 +333,13 @@ const ResignationScreen = ({ route, navigation }) => {
                             <View style={styles.lockNote}>
                                 <Icon name="lock-outline" size={13} color="#15803D" />
                                 <Text style={styles.lockNoteText}>
-                                    You confirmed this resignation
+                                    Your review was saved
                                     {data.clientReview?.date ? ` on ${data.clientReview.date}` : ''}.
                                     Your rating of {data.workerName} is saved and can no longer be changed.
                                 </Text>
                             </View>
                         </View>
-                    ) : (
+                    ) : canSubmit ? (
                         <View>
                             <Text style={styles.reviewHint}>
                                 Rate each criterion for {data.workerName}, then write your remarks.
@@ -335,14 +362,14 @@ const ResignationScreen = ({ route, navigation }) => {
                                 textAlignVertical="top"
                             />
                         </View>
-                    )}
+                    ) : <Text style={styles.reviewHint}>This contract has closed. No resignation action is available.</Text>}
                 </View>
 
                 {/* ── Action ── */}
-                {isConfirmed ? (
+                {!canSubmit ? (
                     <View style={styles.confirmedBtnLocked}>
                         <Icon name="check-circle" size={19} color="#15803D" />
-                        <Text style={styles.confirmedBtnLockedText}>Resignation Confirmed</Text>
+                        <Text style={styles.confirmedBtnLockedText}>{isAccepted ? 'Resignation Accepted' : 'Contract Closed'}</Text>
                     </View>
                 ) : (
                     <TouchableOpacity
@@ -356,7 +383,7 @@ const ResignationScreen = ({ route, navigation }) => {
                         ) : (
                             <View style={styles.confirmBtnInner}>
                                 <Icon name="check-circle-outline" size={20} color="#FFF" />
-                                <Text style={styles.confirmBtnText}>Confirm Resignation</Text>
+                                <Text style={styles.confirmBtnText}>{isAccepted ? 'Submit Review' : 'Confirm Resignation'}</Text>
                             </View>
                         )}
                     </TouchableOpacity>

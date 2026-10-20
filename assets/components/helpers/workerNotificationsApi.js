@@ -78,5 +78,6 @@ export function getWorkerNotificationDestination(item) {
   if (item.type === 'interview') return { screen: 'ActiveRequestsScreen', params: { interviewId: id } };
   if (item.type === 'job') return { screen: 'JobConfirmationScreen', params: { hiringId: id } };
   if (item.type === 'termination') return { screen: 'WorkerTerminationScreen', params: { terminationId: id } };
+  if (item.type === 'resignation') return { screen: 'WorkerResignationReviewScreen', params: { resignationId: id } };
   return null;
 }

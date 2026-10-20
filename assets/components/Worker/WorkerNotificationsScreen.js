@@ -15,6 +15,7 @@ const KINDS = {
   interview: { label: 'Interview', icon: 'account-voice', color: '#1E64D3', background: '#EBF3FF' },
   job: { label: 'Job', icon: 'briefcase-outline', color: '#047857', background: '#ECFDF5' },
   termination: { label: 'Termination', icon: 'file-cancel-outline', color: '#DC2626', background: '#FEF2F2' },
+  resignation: { label: 'Resignation', icon: 'file-check-outline', color: '#7C3AED', background: '#F5F3FF' },
 };
 
 function receivedDate(value) {
@@ -200,7 +201,7 @@ export default function WorkerNotificationsScreen({ navigation }) {
         </TouchableOpacity>
         <View style={styles.content}>
           <Text style={styles.heading}>Notifications</Text>
-          <Text style={styles.subtitle}>{unreadCount === null ? 'Interviews, jobs & terminations' : `${unreadCount} unread · Interviews, jobs & terminations`}</Text>
+          <Text style={styles.subtitle}>{unreadCount === null ? 'Interviews, jobs, terminations & resignations' : `${unreadCount} unread · Interviews, jobs, terminations & resignations`}</Text>
         </View>
       </View>
       <View style={styles.toolbar}>

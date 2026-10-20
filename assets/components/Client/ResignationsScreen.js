@@ -46,7 +46,12 @@ const ResignationsScreen = ({ navigation }) => {
         fetchResignations();
     };
 
-    const renderResignationBox = ({ item }) => (
+    const renderResignationBox = ({ item }) => {
+        const accepted = typeof item.isAccepted === 'boolean' ? item.isAccepted : item.isConfirmed;
+        const reviewed = typeof item.reviewSubmitted === 'boolean' ? item.reviewSubmitted : item.isConfirmed;
+        const canAccept = typeof item.canAccept === 'boolean' ? item.canAccept : !accepted;
+        const needsReview = !reviewed && (canAccept || accepted);
+        return (
         <View style={styles.card}>
             {/* Card Header */}
             <View style={styles.cardHeader}>
@@ -69,21 +74,21 @@ const ResignationsScreen = ({ navigation }) => {
                 <View
                     style={[
                         styles.statusBadge,
-                        item.isConfirmed ? styles.statusBadgeDone : styles.statusBadgePending
+                        needsReview ? styles.statusBadgePending : styles.statusBadgeDone
                     ]}
                 >
                     <Icon
-                        name={item.isConfirmed ? 'check-circle' : 'alert-circle-outline'}
+                        name={needsReview ? 'alert-circle-outline' : 'check-circle'}
                         size={13}
-                        color={item.isConfirmed ? '#15803D' : '#B45309'}
+                        color={needsReview ? '#B45309' : '#15803D'}
                     />
                     <Text
                         style={[
                             styles.statusBadgeText,
-                            item.isConfirmed ? styles.statusTextDone : styles.statusTextPending
+                            needsReview ? styles.statusTextPending : styles.statusTextDone
                         ]}
                     >
-                        {item.isConfirmed ? 'Completed' : 'Needs your review'}
+                        {accepted ? reviewed ? 'Completed' : 'Accepted · Review pending' : canAccept ? 'Needs your review' : 'Contract closed'}
                     </Text>
                 </View>
             </View>
@@ -92,20 +97,21 @@ const ResignationsScreen = ({ navigation }) => {
             <View style={styles.cardFooter}>
                 <View style={styles.lastDayRow}>
                     <Icon name="calendar-clock" size={16} color="#E91E63" />
-                    <Text style={styles.lastDate}>Last Day: {item.lastWorkingDate}</Text>
+                    <Text style={styles.lastDate}>{item.acceptedAtUtc ? `Ended: ${new Date(item.acceptedAtUtc).toLocaleDateString()}` : `Last Day: ${item.lastWorkingDate}`}</Text>
                 </View>
                 <TouchableOpacity
                     style={styles.detailBtn}
                     onPress={() => navigation.navigate('ResignationScreen', { resignationId: item.resignationId })}
                 >
                     <Text style={styles.detailBtnText}>
-                        {item.isConfirmed ? 'View Detail' : 'Review & Confirm'}
+                        {accepted && !reviewed ? 'Review Worker' : canAccept ? 'Review & Confirm' : 'View Detail'}
                     </Text>
                     <Icon name="chevron-right" size={18} color="#FFF" />
                 </TouchableOpacity>
             </View>
         </View>
-    );
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>

@@ -22,6 +22,7 @@ import ResignationsScreen from './assets/components/Client/ResignationsScreen.js
 import ResignationScreen from './assets/components/Client/ResignationScreen.js';
 import WorkerRatingAndReviewsScreen from './assets/components/Worker/RatingAndReviewsScreen.js';
 import LeaveJobScreen from './assets/components/Worker/LeaveJobScreen.js';
+import WorkerResignationReviewScreen from './assets/components/Worker/WorkerResignationReviewScreen.js';
 import TerminateContractScreen from './assets/components/Client/TerminateContractScreen.js';
 import WorkerTerminationScreen from './assets/components/Worker/WorkerTerminationScreen.js';
 import WorkerTerminatedScreen from './assets/components/Worker/WorkerTerminatedScreen.js';
@@ -71,6 +72,7 @@ export default function App() {
           <Stack.Screen name="ResignationScreen" component={ResignationScreen} />
           <Stack.Screen name="WorkerRatingAndReviewsScreen" component={WorkerRatingAndReviewsScreen} />
           <Stack.Screen name="LeaveJobScreen" component={LeaveJobScreen} />
+        <Stack.Screen name="WorkerResignationReviewScreen" component={WorkerResignationReviewScreen} />
           <Stack.Screen name="TerminateContractScreen" component={TerminateContractScreen} />
           <Stack.Screen name="WorkerTerminationScreen" component={WorkerTerminationScreen} />
           <Stack.Screen name="WorkerTerminatedScreen" component={WorkerTerminatedScreen} />
