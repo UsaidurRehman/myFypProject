@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet, View, Text, Image, TouchableOpacity,
@@ -23,8 +23,12 @@ const UserDashboard = ({ navigation }) => {
   const [userPhone, setUserPhone] = useState("03XXXXXXX");
   const [userEmail, setUserEmail] = useState("");
   const [userId, setUserId] = useState(null);
-  const [hiredCount, setHiredCount] = useState(0);
-  const [pendingInterviewsCount, setPendingInterviewsCount] = useState(0);
+  const [hiredCount, setHiredCount] = useState(null);
+  const [pendingInterviewsCount, setPendingInterviewsCount] = useState(null);
+  const [pendingJobRequestsCount, setPendingJobRequestsCount] = useState(null);
+  const [pendingResignationsCount, setPendingResignationsCount] = useState(null);
+  const [dashboardError, setDashboardError] = useState('');
+  const dashboardRequest = useRef(0);
 
   const sortWorkersByInterviewIdDesc = (list = []) => {
     return [...list].sort((a, b) => {
@@ -38,6 +42,8 @@ const UserDashboard = ({ navigation }) => {
     useCallback(() => {
       loadUserInfo();
       fetchWorkers();
+      // An older response must not overwrite dots after a newer focus/retry.
+      return () => { dashboardRequest.current += 1; };
     }, [])
   );
 
@@ -77,19 +83,31 @@ const UserDashboard = ({ navigation }) => {
   };
 
   const fetchWorkers = async () => {
+    const requestId = ++dashboardRequest.current;
+    const isCurrent = () => requestId === dashboardRequest.current;
     setIsLoading(true);
+    setDashboardError('');
     try {
       const token = await AsyncStorage.getItem('userToken');
+      if (!isCurrent()) return;
+      if (!token) {
+        NotificationHelper.showError("Session Expired. Please login again.");
+        navigation.replace('Login');
+        return;
+      }
       const response = await fetch(`${SERVER_BASE}/api/Dashboard/GetClientDashboard`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!isCurrent()) return;
 
       if (response.ok) {
         const data = await response.json();
-        const list = sortWorkersByInterviewIdDesc(data.hiredWorkers || []);
-
+        if (!isCurrent()) return;
+        if (!data || !Array.isArray(data.hiredWorkers) ||
+            !Number.isSafeInteger(data.pendingInterviewsCount) || data.pendingInterviewsCount < 0) {
+          throw new Error('The dashboard response was invalid. Please retry.');
+        }
+        const list = sortWorkersByInterviewIdDesc(data.hiredWorkers);
         const activeWorkers = list.filter(w => {
           const s = (w.status || '').toString().toLowerCase();
           return !s.includes('terminate') && !s.includes('resign');
@@ -97,17 +115,31 @@ const UserDashboard = ({ navigation }) => {
 
         setWorkers(list);
         setHiredCount(activeWorkers.length);
-        setPendingInterviewsCount(data.pendingInterviewsCount || 0);
+        setPendingInterviewsCount(data.pendingInterviewsCount);
+        if (Number.isSafeInteger(data.pendingJobRequestsCount) && data.pendingJobRequestsCount >= 0 &&
+            Number.isSafeInteger(data.pendingResignationsCount) && data.pendingResignationsCount >= 0) {
+          setPendingJobRequestsCount(data.pendingJobRequestsCount);
+          setPendingResignationsCount(data.pendingResignationsCount);
+        } else {
+          // Keep the profile/list usable with an older API, but do not invent
+          // zero counts or silently pretend the new indicators are up to date.
+          setDashboardError('Job and resignation indicators are unavailable. Update the backend and retry.');
+        }
       } else if (response.status === 401) {
         NotificationHelper.showError("Session Expired. Please login again.");
         navigation.replace('Login');
+      } else if (response.status === 403) {
+        setDashboardError('This dashboard requires a Client login. Please sign in with your Client account.');
       } else {
-        console.error("Failed to fetch dashboard data", await response.text());
+        setDashboardError(`Dashboard could not be refreshed (HTTP ${response.status}). Please retry.`);
       }
     } catch (error) {
-      console.error("Network error fetching dashboard data:", error);
+      if (isCurrent()) {
+        setDashboardError(error instanceof Error && error.message === 'The dashboard response was invalid. Please retry.'
+          ? error.message : 'Could not refresh the dashboard. Check your connection and retry.');
+      }
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 
@@ -265,34 +297,57 @@ const UserDashboard = ({ navigation }) => {
         </View>
       </View>
 
+      {!!dashboardError && (
+        <View style={styles.dashboardErrorBox} testID="client-dashboard-error" accessibilityRole="alert">
+          <Text style={styles.dashboardErrorText}>{dashboardError}</Text>
+          <TouchableOpacity onPress={fetchWorkers} testID="client-dashboard-retry" accessibilityRole="button">
+            <Text style={styles.dashboardRetryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Quick Access Service Cards Grid */}
       <View style={styles.gridContainer}>
-        <TouchableOpacity style={styles.gridCard} onPress={() => navigation.navigate('FindServiceScreen')}>
+        <TouchableOpacity testID="client-services" style={styles.gridCard} onPress={() => navigation.navigate('FindServiceScreen')}>
           <View style={[styles.gridIconBg, { backgroundColor: '#EBF8FF' }]}>
             <Icon name="bag-personal-outline" size={20} color="#3182CE" />
           </View>
           <Text style={styles.gridCardText}>Services</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.gridCard} onPress={() => navigation.navigate('ActiveRequestScreen')}>
+        <TouchableOpacity testID="client-interviews" style={styles.gridCard} onPress={() => navigation.navigate('ActiveRequestScreen')}>
           <View style={[styles.gridIconBg, { backgroundColor: '#FEFCBF' }]}>
             <Icon name="calendar-month-outline" size={20} color="#D69E2E" />
           </View>
-          {pendingInterviewsCount > 0 && <View style={styles.orangeNotificationDot} />}
+          {pendingInterviewsCount > 0 && <View testID="client-interviews-dot" style={styles.orangeNotificationDot} />}
           <Text style={styles.gridCardText}>Interviews</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.gridCard} onPress={() => navigation.navigate('WorkerDecisionScreen')}>
+        <TouchableOpacity
+          testID="client-job-requests"
+          style={styles.gridCard}
+          accessibilityRole="button"
+          accessibilityLabel={pendingJobRequestsCount > 0 ? 'Job requests, worker responses need your review' : 'Job requests'}
+          onPress={() => navigation.navigate('WorkerDecisionScreen')}
+        >
           <View style={[styles.gridIconBg, { backgroundColor: '#E6FFFA' }]}>
             <Icon name="briefcase-outline" size={20} color="#319795" />
           </View>
+          {pendingJobRequestsCount > 0 && <View testID="client-job-requests-dot" style={styles.orangeNotificationDot} />}
           <Text style={styles.gridCardText}>Job Reqs</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.gridCard} onPress={() => navigation.navigate('ResignationsScreen')}>
+        <TouchableOpacity
+          testID="client-resignations"
+          style={styles.gridCard}
+          accessibilityRole="button"
+          accessibilityLabel={pendingResignationsCount > 0 ? 'Resignations, notices need your review' : 'Resignations'}
+          onPress={() => navigation.navigate('ResignationsScreen')}
+        >
           <View style={[styles.gridIconBg, { backgroundColor: '#FFF5F5' }]}>
             <Icon name="file-document-outline" size={20} color="#E53E3E" />
           </View>
+          {pendingResignationsCount > 0 && <View testID="client-resignations-dot" style={styles.orangeNotificationDot} />}
           <Text style={styles.gridCardText}>Resignations</Text>
         </TouchableOpacity>
       </View>
@@ -321,7 +376,7 @@ const UserDashboard = ({ navigation }) => {
             </View>
             <View style={styles.overviewCardTextCol}>
               <Text style={styles.overviewCardLabel}>Workers</Text>
-              <Text style={styles.overviewCardNum}>{hiredCount}</Text>
+              <Text style={styles.overviewCardNum}>{hiredCount ?? '—'}</Text>
             </View>
             <View style={styles.liveTag}>
               <Text style={styles.liveTagText}>Live</Text>
@@ -334,7 +389,7 @@ const UserDashboard = ({ navigation }) => {
             </View>
             <View style={styles.overviewCardTextCol}>
               <Text style={styles.overviewCardLabel}>Interview</Text>
-              <Text style={styles.overviewCardNum}>{pendingInterviewsCount}</Text>
+              <Text style={styles.overviewCardNum}>{pendingInterviewsCount ?? '—'}</Text>
             </View>
             <View style={styles.pendingTag}>
               <Text style={styles.pendingTagText}>Pending</Text>
@@ -373,7 +428,7 @@ const UserDashboard = ({ navigation }) => {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            activeTab !== 'Overview' ? (
+            activeTab !== 'Overview' && !dashboardError ? (
               <Text style={styles.emptyListText}>
                 No worker records found in {activeTab.toLowerCase()}.
               </Text>
@@ -538,6 +593,9 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   gridCardText: { fontSize: 11, fontWeight: '600', color: '#2D3748', textAlign: 'center' },
+  dashboardErrorBox: { backgroundColor: '#FFF7ED', borderColor: '#FED7AA', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
+  dashboardErrorText: { color: '#9A3412', fontSize: 12 },
+  dashboardRetryText: { color: '#2563EB', fontWeight: '700', marginTop: 8 },
   orangeNotificationDot: {
     position: 'absolute',
     top: 10,

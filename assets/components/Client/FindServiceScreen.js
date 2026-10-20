@@ -309,6 +309,7 @@ const FindServiceScreen = ({ navigation, route }) => {
                 <TextInput
                     style={styles.searchInput}
                     placeholder="Search by Name"
+                    placeholderTextColor="#6B7280"
                     value={search}
                     onChangeText={setSearch}
                 />
@@ -381,7 +382,7 @@ const styles = StyleSheet.create({
     profileBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#EEE', borderRadius: 10, padding: 2, borderWidth: 1, borderColor: '#FFF', elevation: 2 },
 
     searchContainer: { flexDirection: 'row', backgroundColor: '#FFF', marginHorizontal: 20, marginBottom: 12, borderRadius: 15, paddingHorizontal: 15, alignItems: 'center', borderWidth: 1, borderColor: '#DDD', elevation: 2 },
-    searchInput: { flex: 1, height: 45 },
+    searchInput: { flex: 1, height: 45, color: '#333' },
     searchIcon: { marginLeft: 10 },
 
     tabRow: {

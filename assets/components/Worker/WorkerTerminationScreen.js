@@ -7,23 +7,31 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SERVER_BASE } from '../../config';
 
-const WorkerTerminationScreen = ({ navigation }) => {
+const WorkerTerminationScreen = ({ navigation, route }) => {
+    const terminationId = route?.params?.terminationId;
     const [termination, setTermination] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [rating, setRating] = useState(0);
     const [reviewComment, setReviewComment] = useState('');
     const [reviewSubmitted, setReviewSubmitted] = useState(false);
+    const [loadError, setLoadError] = useState('');
 
     useEffect(() => {
         fetchTerminationStatus();
-    }, []);
+    }, [terminationId]);
 
     const fetchTerminationStatus = async () => {
+        setIsLoading(true);
+        setTermination(null);
+        setLoadError('');
+        setReviewSubmitted(false);
+        setRating(0);
+        setReviewComment('');
         try {
             const workerId = await AsyncStorage.getItem('workerId');
             const token = await AsyncStorage.getItem('userToken');
 
-            const response = await fetch(`${SERVER_BASE}/api/Dashboard/GetLatestTermination/${workerId}`, {
+            const response = await fetch(`${SERVER_BASE}/api/Dashboard/GetLatestTermination/${workerId}${terminationId ? `?terminationId=${encodeURIComponent(terminationId)}` : ''}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -33,9 +41,14 @@ const WorkerTerminationScreen = ({ navigation }) => {
                 // The backend now reports whether this worker already rated the
                 // client for this contract, so the star form stays hidden.
                 setReviewSubmitted(!!data.workerReviewSubmitted);
+            } else if (response.status === 404 && terminationId) {
+                setLoadError('This termination record is no longer available. The notification remains in your history.');
+            } else if (response.status !== 404) {
+                setLoadError('Could not load termination details. Please try again.');
             }
         } catch (error) {
             console.error("Error fetching termination status:", error);
+            setLoadError('Could not connect to the server. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -105,9 +118,9 @@ const WorkerTerminationScreen = ({ navigation }) => {
                         <View style={styles.iconCircle}>
                             <Icon name="check-decagram" size={80} color="#4CAF50" />
                         </View>
-                        <Text style={styles.emptyTitle}>Good News!</Text>
+                        <Text style={styles.emptyTitle}>{loadError ? 'Details unavailable' : 'Good News!'}</Text>
                         <Text style={styles.emptySubtitle}>
-                            You currently have no recorded terminations. Your professional record is clean.
+                            {loadError || 'You currently have no recorded terminations. Your professional record is clean.'}
                         </Text>
                         <TouchableOpacity
                             style={styles.goBackBtn}
@@ -133,9 +146,9 @@ const WorkerTerminationScreen = ({ navigation }) => {
                             <View style={styles.dateRow}>
                                 <Icon name="calendar-range" size={20} color="#666" />
                                 <Text style={styles.dateText}>
-                                    Terminated on: {new Date(termination.terminatedDate).toLocaleDateString('en-US', {
+                                    Terminated on: {termination.terminatedDate ? new Date(termination.terminatedDate).toLocaleDateString('en-US', {
                                         month: 'long', day: 'numeric', year: 'numeric'
-                                    })}
+                                    }) : 'Date not provided'}
                                 </Text>
                             </View>
                         </View>

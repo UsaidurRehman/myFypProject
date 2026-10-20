@@ -11,7 +11,8 @@ import JobTypeBadge from '../helpers/JobTypeBadge';
 import SlotTimeLabel from '../helpers/SlotTimeLabel';
 import ResidenceBadge from '../helpers/ResidenceBadge';
 
-const ActiveRequestsScreen = ({ navigation }) => {
+const ActiveRequestsScreen = ({ navigation, route }) => {
+    const interviewId = route?.params?.interviewId;
     const [requests, setRequests] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -19,14 +20,15 @@ const ActiveRequestsScreen = ({ navigation }) => {
     const API_BASE = API_DASHBOARD;
 
     useEffect(() => {
+        setRequests([]);
         fetchRequests();
-    }, []);
+    }, [interviewId]);
 
     const fetchRequests = async (showLoader = true) => {
         if (showLoader) setIsLoading(true);
         try {
             const token = await AsyncStorage.getItem('userToken');
-            const response = await fetch(`${API_BASE}/GetWorkerRequests`, {
+            const response = await fetch(`${API_BASE}/GetWorkerRequests${interviewId ? `?interviewId=${encodeURIComponent(interviewId)}` : ''}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -47,7 +49,7 @@ const ActiveRequestsScreen = ({ navigation }) => {
     const onRefresh = useCallback(() => {
         setIsRefreshing(true);
         fetchRequests(false);
-    }, []);
+    }, [interviewId]);
 
     const handleStatusUpdate = async (id, decision) => {
         try {
@@ -63,7 +65,8 @@ const ActiveRequestsScreen = ({ navigation }) => {
 
             if (response.ok) {
                 NotificationHelper.showSuccess(`Request ${decision}!`);
-                setRequests(prev => prev.filter(r => r.id !== id));
+                if (interviewId) fetchRequests(false);
+                else setRequests(prev => prev.filter(r => r.id !== id));
             } else {
                 NotificationHelper.showError("Failed to update status.");
             }
@@ -83,7 +86,7 @@ const ActiveRequestsScreen = ({ navigation }) => {
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                         <Icon name="arrow-left" size={24} color="#1F2937" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Active Requests</Text>
+                    <Text style={styles.headerTitle}>{interviewId ? 'Interview Details' : 'Active Requests'}</Text>
                 </View>
                 <View style={styles.logoBox}>
                     <Image
@@ -101,7 +104,7 @@ const ActiveRequestsScreen = ({ navigation }) => {
                 }
             >
                 <View style={styles.sectionHeadingRow}>
-                    <Text style={styles.sectionHeading}>New Booking Requests ({requests.length})</Text>
+                    <Text style={styles.sectionHeading}>{interviewId ? 'Interview request' : `New Booking Requests (${requests.length})`}</Text>
                     <TouchableOpacity onPress={() => navigation.navigate('AcceptedRequestScreen')}>
                         <Text style={styles.gotoLink}>Goto Accepted</Text>
                     </TouchableOpacity>
@@ -110,7 +113,7 @@ const ActiveRequestsScreen = ({ navigation }) => {
                 {isLoading ? (
                     <ActivityIndicator size="large" color="#1E64D3" style={{ marginTop: 20 }} />
                 ) : requests.length === 0 ? (
-                    <Text style={{ textAlign: 'center', marginTop: 40, fontStyle: 'italic', color: '#999' }}>No pending requests.</Text>
+                    <Text style={{ textAlign: 'center', marginTop: 40, fontStyle: 'italic', color: '#999' }}>{interviewId ? 'This interview is no longer available. The notification remains in your history.' : 'No pending requests.'}</Text>
                 ) : (
                     requests.map((item, index) => {
                         const uniqueKey = item.id ? item.id.toString() : index.toString();
@@ -204,7 +207,8 @@ const ActiveRequestsScreen = ({ navigation }) => {
                                     </View>
                                 ) : null}
 
-                                {/* Row 5: actions */}
+                                {/* Historical/read requests stay viewable without reopening actions. */}
+                                {item.canRespond !== false ? (
                                 <View style={styles.actionRow}>
                                     <TouchableOpacity
                                         style={styles.rejectBtn}
@@ -222,6 +226,11 @@ const ActiveRequestsScreen = ({ navigation }) => {
                                         <Text style={styles.acceptText}>Accept Booking</Text>
                                     </TouchableOpacity>
                                 </View>
+                                ) : (
+                                    <Text style={styles.detailText}>
+                                        Response: {item.workerDecision || 'Pending'} · Status: {item.status || 'Pending'}
+                                    </Text>
+                                )}
                             </View>
                         );
                     })

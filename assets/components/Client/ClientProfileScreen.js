@@ -12,6 +12,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { SERVER_BASE, API_DASHBOARD } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ReviewEndReason from '../helpers/ReviewEndReason';
 
 
 
@@ -151,6 +152,10 @@ const fetchClientProfile = async () => {
                   <Text style={styles.singleRatingText}>{item.rating}</Text>
                 </View>
               </View>
+              <ReviewEndReason
+                endType={item.endReasonType || item.endType}
+                reason={item.endReason}
+              />
               <Text style={styles.comment}>{item.comment}</Text>
               <Text style={styles.date}>{item.date}</Text>
               {item.workedPeriod ? (

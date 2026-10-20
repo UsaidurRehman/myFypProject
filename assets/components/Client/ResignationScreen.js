@@ -10,6 +10,7 @@ import { API_DASHBOARD, SERVER_BASE } from '../../config';
 import NotificationHelper from '../Notification/NotificationHelper';
 import CriteriaReviewSection from '../helpers/CriteriaReviewSection';
 import CriteriaBreakdown from '../helpers/CriteriaBreakdown';
+import ReviewEndReason from '../helpers/ReviewEndReason';
 
 const ResignationScreen = ({ route, navigation }) => {
     const { resignationId } = route.params || {};
@@ -243,6 +244,11 @@ const ResignationScreen = ({ route, navigation }) => {
                             <Text style={styles.reviewMetaDate}>· {data.workerReview.date}</Text>
                         </View>
 
+                        <ReviewEndReason
+                            endType={data.workerReview.endReasonType || data.workerReview.endType || data.status}
+                            reason={data.workerReview.endReason}
+                        />
+
                         {data.workerReview.comment ? (
                             <Text style={styles.reviewCommentQuoted}>
                                 &quot;{data.workerReview.comment}&quot;
@@ -283,6 +289,11 @@ const ResignationScreen = ({ route, navigation }) => {
                                     <Text style={styles.reviewMetaDate}>· {data.clientReview.date}</Text>
                                 ) : null}
                             </View>
+
+                            <ReviewEndReason
+                                endType={data.clientReview?.endReasonType || data.clientReview?.endType || data.status}
+                                reason={data.clientReview?.endReason}
+                            />
 
                             {data.clientReview?.comment ? (
                                 <Text style={styles.reviewCommentQuoted}>

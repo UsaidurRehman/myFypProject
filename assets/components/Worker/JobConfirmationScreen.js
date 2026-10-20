@@ -13,22 +13,24 @@ import ResidenceBadge from '../helpers/ResidenceBadge';
 
 const API_BASE = `${SERVER_BASE}/api/Dashboard`;
 
-const JobConfirmationScreen = ({ navigation }) => {
+const JobConfirmationScreen = ({ navigation, route }) => {
+    const selectedHiringId = route?.params?.hiringId;
     const [jobs, setJobs] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     useEffect(() => {
+        setJobs([]);
         fetchJobConfirmations();
-    }, []);
+    }, [selectedHiringId]);
 
     const fetchJobConfirmations = async (showLoader = true) => {
         if (showLoader) setLoading(true);
         try {
             const token = await AsyncStorage.getItem('userToken');
             const res = await fetch(
-                `${API_BASE}/GetWorkerJobConfirmations`,
+                `${API_BASE}/GetWorkerJobConfirmations${selectedHiringId ? `?hiringId=${encodeURIComponent(selectedHiringId)}` : ''}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (!res.ok) {
@@ -49,14 +51,14 @@ const JobConfirmationScreen = ({ navigation }) => {
     const onRefresh = useCallback(() => {
         setIsRefreshing(true);
         fetchJobConfirmations(false);
-    }, []);
+    }, [selectedHiringId]);
 
     // Worker accepts the offer
-    const handleAcceptJob = async (hiringId) => {
+    const handleAcceptJob = async (interviewId, hiringId) => {
         try {
             const token = await AsyncStorage.getItem('userToken');
             const res = await fetch(
-                `${API_BASE}/WorkerAcceptJobOffer/${hiringId}`,
+                `${API_BASE}/WorkerAcceptJobOffer/${interviewId}${hiringId ? `?hiringId=${encodeURIComponent(hiringId)}` : ''}`,
                 { method: 'PUT', headers: { Authorization: `Bearer ${token}` } }
             );
             if (res.ok) {
@@ -71,11 +73,11 @@ const JobConfirmationScreen = ({ navigation }) => {
     };
 
     // Worker rejects the offer
-    const handleRejectJob = async (hiringId) => {
+    const handleRejectJob = async (interviewId, hiringId) => {
         try {
             const token = await AsyncStorage.getItem('userToken');
             const res = await fetch(
-                `${API_BASE}/WorkerRejectJobOffer/${hiringId}`,
+                `${API_BASE}/WorkerRejectJobOffer/${interviewId}${hiringId ? `?hiringId=${encodeURIComponent(hiringId)}` : ''}`,
                 { method: 'PUT', headers: { Authorization: `Bearer ${token}` } }
             );
             if (res.ok) {
@@ -186,7 +188,7 @@ const JobConfirmationScreen = ({ navigation }) => {
         ];
 
         return (
-            <View key={hiringId.toString()} style={styles.card}>
+            <View key={String(item.hiringId || hiringId)} style={styles.card}>
                 <View style={[styles.cardAccent, { backgroundColor: borderColor }]} />
 
                 {/* Row 1 — state + booking type */}
@@ -287,14 +289,14 @@ const JobConfirmationScreen = ({ navigation }) => {
                         <>
                             <TouchableOpacity
                                 style={styles.rejectBtn}
-                                onPress={() => handleRejectJob(hiringId)}
+                                onPress={() => handleRejectJob(item.id, item.hiringId)}
                                 activeOpacity={0.85}
                             >
                                 <Text style={styles.btnTextGrey}>Reject</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={styles.acceptBtn}
-                                onPress={() => handleAcceptJob(hiringId)}
+                                onPress={() => handleAcceptJob(item.id, item.hiringId)}
                                 activeOpacity={0.85}
                             >
                                 <Icon name="check" size={16} color="#FFF" />
@@ -367,7 +369,7 @@ const JobConfirmationScreen = ({ navigation }) => {
                     }
                 >
                     {filteredJobs.length === 0 ? (
-                        <Text style={styles.emptyText}>No job confirmations available.</Text>
+                        <Text style={styles.emptyText}>{selectedHiringId ? 'This job record is no longer available. The notification remains in your history.' : 'No job confirmations available.'}</Text>
                     ) : (
                         filteredJobs.map((item, index) => renderJobCard(item, index))
                     )}

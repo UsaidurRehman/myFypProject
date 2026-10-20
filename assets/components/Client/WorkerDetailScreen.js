@@ -383,6 +383,8 @@ const WorkerDetailScreen = ({ navigation, route }) => {
                                 date={rev.date}
                                 workedPeriod={rev.workedPeriod}
                                 endType={rev.endType}
+                                endReasonType={rev.endReasonType}
+                                endReason={rev.endReason}
                                 criteria={rev.criteria}
                                 onNamePress={() => {
                                     if (rev.clientId) {

@@ -10,6 +10,7 @@ import FindServiceScreen from './assets/components/Client/FindServiceScreen.js';
 import FilterationScreen from './assets/components/Client/FilterationScreen.js';
 import WorkerDetailScreen from './assets/components/Client/WorkerDetailScreen.js';
 import WorkerDashboardScreen from './assets/components/Worker/WorkerDashboardScreen.js';
+import WorkerNotificationsScreen from './assets/components/Worker/WorkerNotificationsScreen.js';
 import InterviewSelectionScreen from './assets/components/Client/InterviewSelectionScreen.js';
 import ActiveRequestsScreen from './assets/components/Worker/ActiveRequestsScreen.js';
 import ActiveRequestScreen from './assets/components/Client/ActiveRequestScreen.js';
@@ -58,6 +59,7 @@ export default function App() {
           <Stack.Screen name="FilterationScreen" component={FilterationScreen} />
           <Stack.Screen name="WorkerDetailScreen" component={WorkerDetailScreen} />
           <Stack.Screen name="WorkerDashboardScreen" component={WorkerDashboardScreen} />
+          <Stack.Screen name="WorkerNotificationsScreen" component={WorkerNotificationsScreen} />
           <Stack.Screen name="InterviewSelectionScreen" component={InterviewSelectionScreen} />
           <Stack.Screen name="ActiveRequestsScreen" component={ActiveRequestsScreen} />
           <Stack.Screen name="ActiveRequestScreen" component={ActiveRequestScreen} />

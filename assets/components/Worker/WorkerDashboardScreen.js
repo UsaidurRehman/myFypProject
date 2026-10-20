@@ -11,6 +11,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { SERVER_BASE, API_DASHBOARD } from '../../config';
 import ReviewCard from '../helpers/ReviewCard';
+import WorkerNotificationBell from '../helpers/WorkerNotificationBell';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -361,7 +362,7 @@ const WorkerDashboardScreen = ({ navigation }) => {
 
                         <View style={{ flex: 1 }}>
                             <Text style={styles.greetingText}>GOOD AFTERNOON,</Text>
-                            <Text style={styles.headerName}>{worker.name || 'Mesam Abbas'}</Text>
+                            <Text style={styles.headerName} numberOfLines={1}>{worker.name || 'Mesam Abbas'}</Text>
                             <View style={styles.roleAgeRow}>
                                 <Text style={styles.roleText}>{worker.role || 'Cleaning'}</Text>
                                 <Text style={styles.ageText}>  •  {worker.age || 45} Years Old</Text>
@@ -370,6 +371,7 @@ const WorkerDashboardScreen = ({ navigation }) => {
                     </View>
 
                     <View style={styles.headerRightActions}>
+                        <WorkerNotificationBell navigation={navigation} />
                         <TouchableOpacity style={styles.pillEditBtn} onPress={handleEditProfile}>
                             <Icon name="square-edit-outline" size={16} color="#555" />
                             <Text style={styles.pillEditBtnText}>Edit</Text>
@@ -533,8 +535,10 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         <Text style={styles.radiusLimitText}>Max Limit: 70 km</Text>
                     </View>
 
-                    {/* Interview Requests Notification Tab */}
+                    {/* Dashboard shortcuts; unread counts belong to the header bell. */}
                     <TouchableOpacity
+                        testID="worker-interview-requests"
+                        accessibilityRole="button"
                         style={styles.notifCard}
                         onPress={() => navigation.navigate('ActiveRequestsScreen')}
                     >
@@ -543,15 +547,13 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         </View>
                         <View style={{ flex: 1, marginLeft: 12 }}>
                             <Text style={styles.notifTitle}>Interview Requests</Text>
-                            <Text style={styles.notifSub}>Pending: {worker.pendingRequestCount || 0}</Text>
-                        </View>
-                        <View style={styles.redBadge}>
-                            <Text style={styles.redBadgeText}>{worker.pendingRequestCount || 0}</Text>
+                            <Text style={styles.notifSub}>View and respond to interview requests</Text>
                         </View>
                     </TouchableOpacity>
 
-                    {/* Job Notifications Tab */}
                     <TouchableOpacity
+                        testID="worker-job-notifications"
+                        accessibilityRole="button"
                         style={styles.notifCard}
                         onPress={() => navigation.navigate('JobConfirmationScreen')}
                     >
@@ -561,9 +563,6 @@ const WorkerDashboardScreen = ({ navigation }) => {
                         <View style={{ flex: 1, marginLeft: 12 }}>
                             <Text style={styles.notifTitle}>Job Notifications</Text>
                             <Text style={styles.notifSub}>Job Confirmations and Rejections</Text>
-                        </View>
-                        <View style={styles.redBadge}>
-                            <Text style={styles.redBadgeText}>{worker.jobNotificationCount || 0}</Text>
                         </View>
                     </TouchableOpacity>
 
@@ -582,15 +581,6 @@ const WorkerDashboardScreen = ({ navigation }) => {
                             <Text style={styles.terminateText}>Resign from Job</Text>
                         </TouchableOpacity>
                     </View>
-
-                    <TouchableOpacity
-                        style={styles.checkStatusBtn}
-                        onPress={() => navigation.navigate('WorkerTerminationScreen')}
-                    >
-                        <Text style={styles.btnTextWhite}>
-                            Check Termination Status {worker.terminationCount > 0 ? `(${worker.terminationCount})` : ''}
-                        </Text>
-                    </TouchableOpacity>
 
                     {/* Habits — shown on the worker's own profile to clients */}
                     <TouchableOpacity
@@ -787,6 +777,8 @@ const WorkerDashboardScreen = ({ navigation }) => {
                                     date={item.date || 'Recent'}
                                     workedPeriod={item.workedPeriod}
                                     endType={item.endType}
+                                    endReasonType={item.endReasonType}
+                                    endReason={item.endReason}
                                     criteria={item.criteria}
                                     text={item.comment || item.reviewText || ''}
                                     onNamePress={() => {
@@ -912,12 +904,12 @@ const styles = StyleSheet.create({
 
     // Header & Profile Image
     topHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    profileSection: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+    profileSection: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, marginRight: 8 },
     profileAvatar: { width: 52, height: 52, borderRadius: 26, marginRight: 12, borderWidth: 1.5, borderColor: '#1E64D3' },
     profileAvatarPlaceholder: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#EBF3FF', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#1E64D3' },
     greetingText: { fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 0.5 },
     headerName: { fontSize: 20, fontWeight: 'bold', color: '#1C1C1E', marginVertical: 1 },
-    roleAgeRow: { flexDirection: 'row', alignItems: 'center' },
+    roleAgeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
     roleText: { fontSize: 14, fontWeight: '700', color: '#1E64D3' },
     ageText: { fontSize: 13, color: '#8E8E93' },
     headerRightActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -989,13 +981,6 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
 
-    // Notification Cards
-    notifCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E5E5EA' },
-    notifTitle: { fontSize: 14, fontWeight: 'bold', color: '#1C1C1E' },
-    notifSub: { fontSize: 12, color: '#8E8E93', marginTop: 1 },
-    redBadge: { backgroundColor: '#E53935', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
-    redBadgeText: { color: '#FFF', fontSize: 11, fontWeight: 'bold' },
-
     // Availability Section
     lightBlueBtn: { backgroundColor: '#EBF3FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
     lightBlueBtnText: { color: '#1E64D3', fontSize: 12, fontWeight: 'bold' },
@@ -1022,6 +1007,11 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
 
+    // Original dashboard shortcut styles (no per-button badges).
+    notifCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E5E5EA' },
+    notifTitle: { fontSize: 14, fontWeight: 'bold', color: '#1C1C1E' },
+    notifSub: { fontSize: 12, color: '#8E8E93', marginTop: 1 },
+
     // Employment & Experience Tab
     actionCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#E5E5EA' },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
@@ -1029,7 +1019,6 @@ const styles = StyleSheet.create({
     actionSubtext: { fontSize: 13, color: '#666', marginBottom: 12 },
     terminateBtn: { backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 42, borderRadius: 21, borderWidth: 1, borderColor: '#FF4D4D' },
     terminateText: { color: '#FF4D4D', fontWeight: 'bold', marginLeft: 8 },
-    checkStatusBtn: { backgroundColor: '#FF3B30', height: 45, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
     habitsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF4FF', borderWidth: 1, borderColor: '#D8E6FF', height: 45, borderRadius: 22, marginBottom: 14, gap: 8 },
     habitsBtnText: { color: '#1E64D3', fontWeight: '700', fontSize: 14 },
     btnTextWhite: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },

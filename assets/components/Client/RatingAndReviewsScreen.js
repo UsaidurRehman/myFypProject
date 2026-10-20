@@ -14,6 +14,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_DASHBOARD } from '../../config';
 import NotificationHelper from '../Notification/NotificationHelper';
+import ReviewEndReason from '../helpers/ReviewEndReason';
 
 const RatingAndReviewsScreen = ({ navigation, route }) => {
     const { workerId, initialRating, initialReviewCount } = route.params || {};
@@ -155,6 +156,10 @@ const RatingAndReviewsScreen = ({ navigation, route }) => {
                                         {renderStars(item.rating)}
                                     </View>
                                 </View>
+                                <ReviewEndReason
+                                    endType={item.endReasonType || item.endType}
+                                    reason={item.endReason}
+                                />
                                 <Text style={styles.commentText}>"{item.comment}"</Text>
                             </View>
                         ))

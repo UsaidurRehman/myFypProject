@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import CriteriaBreakdown from './CriteriaBreakdown';
+import ReviewEndReason from './ReviewEndReason';
 
 // Badge colors: the contract ended one of two ways, so the review can be tagged.
 const END_BADGE = {
@@ -31,7 +32,7 @@ function Stars({ value, size }) {
 
 /**
  * Shared review card: reviewer + Terminated/Resigned badge, overall stars,
- * remarks, worked period, and a tap-to-expand criteria breakdown.
+ * contract-ending reason, remarks, worked period, and a tap-to-expand criteria breakdown.
  *
  * Props:
  *  - name          reviewer name (left avatar initial)
@@ -40,6 +41,8 @@ function Stars({ value, size }) {
  *  - date          formatted date string
  *  - workedPeriod  optional "Worked for X" string
  *  - endType       'Terminated' | 'Resigned' | anything (badge only for the first two)
+ *  - endReasonType canonical ending type returned by the API (supports pending resignations)
+ *  - endReason     reason from the matching Termination/Resignation, not the review comment
  *  - text          the free-text remarks/comment
  *  - criteria      [{ name, score }] — per-criterion breakdown (hidden when empty)
  *  - accentColor   accent for the name/border (default brand blue)
@@ -52,6 +55,8 @@ export default function ReviewCard({
   date = '',
   workedPeriod = '',
   endType = '',
+  endReasonType = '',
+  endReason = '',
   text = '',
   criteria = [],
   accentColor = '#3B82F6',
@@ -101,6 +106,8 @@ export default function ReviewCard({
         <Stars value={rating} size={16} />
         <Text style={styles.ratingNum}>{rating}</Text>
       </View>
+
+      <ReviewEndReason endType={endReasonType || endType} reason={endReason} />
 
       {!!text && <Text style={styles.text}>{text}</Text>}
 
