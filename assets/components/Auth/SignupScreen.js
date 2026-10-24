@@ -93,8 +93,7 @@ const SignupScreen = ({ navigation, route }) => {
   const [experiencesData, setExperiencesData] = useState([]);
   const [gender, setGender] = useState('Male');
   const [bio, setBio] = useState('');
-  // Habits: the list comes from the API (dbo.Habits) — the worker only ticks
-  // checkboxes, so the wording stays identical to the client-side filter options.
+  // Signup reads the worker-selectable catalog; client filter options are served separately.
   const [habitsCatalog, setHabitsCatalog] = useState([]);
   const [selectedHabitIds, setSelectedHabitIds] = useState([]);
   const [isLoadingHabits, setIsLoadingHabits] = useState(false);

@@ -11,12 +11,42 @@ import { API_DASHBOARD, SERVER_BASE } from '../../config';
 const API_BASE = API_DASHBOARD;
 
 const RECOMMENDED_CITIES = [
-    'Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 
-    'Faisalabad', 'Peshawar', 'Multan', 'Quetta', 
+    'Islamabad', 'Rawalpindi', 'Lahore', 'Karachi',
+    'Faisalabad', 'Peshawar', 'Multan', 'Quetta',
     'Gujranwala', 'Sialkot'
 ];
+const CITY_OPTIONS = ['All', ...RECOMMENDED_CITIES];
+
+const getHabitId = habit => Number(habit?.habitId ?? habit?.id);
+
+const normalizeHabitIds = (ids, catalog) => {
+    const byId = new Map(catalog.map(habit => [getHabitId(habit), habit]));
+    const selected = [];
+    const usedGroups = new Set();
+
+    (Array.isArray(ids) ? ids : []).forEach(rawId => {
+        const id = Number(rawId);
+        const habit = byId.get(id);
+        if (!Number.isInteger(id) || !habit || selected.includes(id)) return;
+
+        const group = habit.exclusiveGroup?.trim().toLowerCase();
+        if (group && usedGroups.has(group)) return;
+        if (group) usedGroups.add(group);
+        selected.push(id);
+    });
+
+    return selected;
+};
 
 const FilterationScreen = ({ navigation, route }) => {
+    const defaultCity = route.params?.defaultCity || 'All';
+    const isRecommendedDefaultCity = RECOMMENDED_CITIES.some(
+        city => city.toLowerCase() === defaultCity.toLowerCase()
+    );
+    const cityOptions = defaultCity.toLowerCase() !== 'all' && !isRecommendedDefaultCity
+        ? ['All', defaultCity, ...RECOMMENDED_CITIES]
+        : CITY_OPTIONS;
+
     // States for dynamic data
     const [allCategories, setAllCategories] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -31,9 +61,10 @@ const FilterationScreen = ({ navigation, route }) => {
     // Key is category name, value is array of sub-skill names
     const [subFilters, setSubFilters] = useState({});
 
-    // Habits (multi-select, ids from dbo.Habits). Applied with AND logic on the
-    // server: the worker must hold every habit ticked here.
+    // Only client-filterable habits are loaded. Filters use AND across selected
+    // values, with one choice allowed per exclusive group.
     const [habitsCatalog, setHabitsCatalog] = useState([]);
+    const [habitsCatalogLoaded, setHabitsCatalogLoaded] = useState(false);
     const [selectedHabitIds, setSelectedHabitIds] = useState([]);
 
     // Initial load of categories
@@ -45,12 +76,13 @@ const FilterationScreen = ({ navigation, route }) => {
     const fetchHabits = async () => {
         try {
             const token = await AsyncStorage.getItem('userToken');
-            const response = await fetch(`${SERVER_BASE}/api/Habits/GetHabits`, {
+            const response = await fetch(`${SERVER_BASE}/api/Habits/GetClientFilterHabits`, {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
             if (response.ok) {
                 const list = await response.json();
                 setHabitsCatalog(Array.isArray(list) ? list : []);
+                setHabitsCatalogLoaded(true);
             }
         } catch (error) {
             console.error('Habits load failed:', error?.message);
@@ -58,9 +90,20 @@ const FilterationScreen = ({ navigation, route }) => {
     };
 
     const toggleHabitFilter = (habitId) => {
-        setSelectedHabitIds((prev) =>
-            prev.includes(habitId) ? prev.filter((id) => id !== habitId) : [...prev, habitId]
-        );
+        const id = Number(habitId);
+        const target = habitsCatalog.find(item => getHabitId(item) === id);
+        const targetGroup = target?.exclusiveGroup?.trim().toLowerCase();
+
+        setSelectedHabitIds((prev) => {
+            if (prev.includes(id)) return prev.filter(selectedId => selectedId !== id);
+            if (!targetGroup) return [...prev, id];
+
+            const withoutSameGroup = prev.filter(selectedId => {
+                const selectedHabit = habitsCatalog.find(item => getHabitId(item) === selectedId);
+                return selectedHabit?.exclusiveGroup?.trim().toLowerCase() !== targetGroup;
+            });
+            return [...withoutSameGroup, id];
+        });
     };
 
     // Sync initial filters when categories are loaded or when params change
@@ -68,7 +111,7 @@ const FilterationScreen = ({ navigation, route }) => {
         if (!isLoading && route.params?.initialFilters) {
             const { gender, city, categories, subSkills, habits } = route.params.initialFilters;
             setSelectedGender(gender || '');
-            setSelectedCity(city || '');
+            setSelectedCity(city || defaultCity || 'All');
             setSelectedHabitIds(Array.isArray(habits) ? habits : []);
             setSelectedSkills((categories || []).map(item => item?.toString ? item.toString() : item));
 
@@ -80,7 +123,19 @@ const FilterationScreen = ({ navigation, route }) => {
                 setSubFilters(syncedSubFilters);
             }
         }
-    }, [isLoading, route.params?.initialFilters]);
+    }, [isLoading, route.params?.initialFilters, defaultCity]);
+
+    // Drop old/non-filterable IDs and normalize any persisted opposite choices
+    // once the server-provided client filter catalog is available.
+    useEffect(() => {
+        if (!habitsCatalogLoaded) return;
+        setSelectedHabitIds(prev => {
+            const normalized = normalizeHabitIds(prev, habitsCatalog);
+            const unchanged = normalized.length === prev.length
+                && normalized.every((id, index) => id === prev[index]);
+            return unchanged ? prev : normalized;
+        });
+    }, [habitsCatalog, habitsCatalogLoaded, selectedHabitIds]);
 
     const fetchFilterData = async () => {
         setIsLoading(true);
@@ -165,7 +220,7 @@ const FilterationScreen = ({ navigation, route }) => {
         navigation.navigate('FindServiceScreen', {
             appliedFilters: {
                 gender: selectedGender,
-                city: selectedCity,
+                city: selectedCity || defaultCity || 'All',
                 categories: selectedSkills,
                 subSkills: subFilters,
                 habits: selectedHabitIds
@@ -176,7 +231,7 @@ const FilterationScreen = ({ navigation, route }) => {
     const handleReset = () => {
         setSelectedGender('');
         setSelectedSkills([]);
-        setSelectedCity('');
+        setSelectedCity(defaultCity || 'All');
         setSelectedHabitIds([]);
         const resetSubFilters = {};
         allCategories.forEach(cat => {
@@ -188,7 +243,7 @@ const FilterationScreen = ({ navigation, route }) => {
         navigation.navigate('FindServiceScreen', {
             appliedFilters: {
                 gender: '',
-                city: '',
+                city: defaultCity || 'All',
                 categories: [],
                 subSkills: resetSubFilters,
                 habits: []
@@ -218,13 +273,13 @@ const FilterationScreen = ({ navigation, route }) => {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Recommended City</Text>
+                            <Text style={styles.modalTitle}>Select City</Text>
                             <TouchableOpacity onPress={() => setCityModalVisible(false)}>
                                 <Icon name="close" size={24} color="#333" />
                             </TouchableOpacity>
                         </View>
                         <FlatList
-                            data={RECOMMENDED_CITIES}
+                            data={cityOptions}
                             keyExtractor={(item) => item}
                             renderItem={({ item }) => (
                                 <TouchableOpacity 
@@ -334,7 +389,7 @@ const FilterationScreen = ({ navigation, route }) => {
                         onPress={() => setCityModalVisible(true)}
                     >
                         <Text style={[styles.dropdownText, !selectedCity && { color: '#999' }]}>
-                            {selectedCity || 'Select Recommended City'}
+                            {selectedCity || 'Select City'}
                         </Text>
                         <Icon name="chevron-down" size={24} color="#000" />
                     </TouchableOpacity>
@@ -350,7 +405,7 @@ const FilterationScreen = ({ navigation, route }) => {
 
                         <View style={styles.habitsWrap}>
                             {habitsCatalog.map((habit) => {
-                                const habitId = habit.habitId ?? habit.id;
+                                const habitId = getHabitId(habit);
                                 const isActive = selectedHabitIds.includes(habitId);
                                 return (
                                     <TouchableOpacity
@@ -360,7 +415,9 @@ const FilterationScreen = ({ navigation, route }) => {
                                         activeOpacity={0.8}
                                     >
                                         <Icon
-                                            name={isActive ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                                            name={habit.exclusiveGroup
+                                                ? (isActive ? 'radiobox-marked' : 'radiobox-blank')
+                                                : (isActive ? 'checkbox-marked' : 'checkbox-blank-outline')}
                                             size={16}
                                             color={isActive ? '#FFF' : '#94A3B8'}
                                         />
@@ -374,8 +431,8 @@ const FilterationScreen = ({ navigation, route }) => {
 
                         {selectedHabitIds.length > 0 && (
                             <Text style={styles.habitsNote}>
-                                Workers must match all {selectedHabitIds.length} selected habit
-                                {selectedHabitIds.length > 1 ? 's' : ''}.
+                                Workers must match all {selectedHabitIds.length} selected filter
+                                {selectedHabitIds.length > 1 ? 's' : ''}. Choose only one option from each opposite pair.
                             </Text>
                         )}
                     </View>

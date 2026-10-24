@@ -16,14 +16,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationHelper from '../Notification/NotificationHelper';
 import { SERVER_BASE } from '../../config';
 
-// Master habits live in dbo.Habits and are served by api/Habits — the worker only
-// ticks checkboxes here, so the wording matches the client-side filter exactly.
+// Worker-selectable habits live in dbo.Habits and are served by api/Habits.
 const API_HABITS = `${SERVER_BASE}/api/Habits`;
+
+const getHabitId = habit => Number(habit?.habitId ?? habit?.id);
+const normalizeHabitIds = ids => [...new Set((Array.isArray(ids) ? ids : [])
+    .map(Number)
+    .filter(id => Number.isInteger(id) && id > 0))];
+const findExclusiveGroupConflict = (ids, catalog) => {
+    const groups = new Set();
+    for (const id of ids) {
+        const habit = catalog.find(item => getHabitId(item) === Number(id));
+        const group = habit?.exclusiveGroup?.trim().toLowerCase();
+        if (!group) continue;
+        if (groups.has(group)) return group;
+        groups.add(group);
+    }
+    return null;
+};
 
 const MyHabitsScreen = ({ navigation, route }) => {
     const isSignup = route?.params?.isSignup;
 
-    const [catalog, setCatalog] = useState([]);        // all active habits
+    const [catalog, setCatalog] = useState([]);        // active worker-selectable habits
     const [selectedIds, setSelectedIds] = useState([]); // what this worker ticked
     const [savedIds, setSavedIds] = useState([]);       // what is in the DB right now
     const [isLoading, setIsLoading] = useState(true);
@@ -47,8 +62,9 @@ const MyHabitsScreen = ({ navigation, route }) => {
                     : Array.isArray(route.params?.selectedHabitIds)
                         ? route.params.selectedHabitIds
                         : [];
-                setSelectedIds(initial);
-                setSavedIds(initial);
+                const normalizedInitial = normalizeHabitIds(initial);
+                setSelectedIds(normalizedInitial);
+                setSavedIds(normalizedInitial);
             } else {
                 const token = await AsyncStorage.getItem('userToken');
                 const workerId = await AsyncStorage.getItem('workerId');
@@ -75,8 +91,9 @@ const MyHabitsScreen = ({ navigation, route }) => {
 
                 if (mineRes.ok) {
                     const mine = await mineRes.json();
-                    setSelectedIds(Array.isArray(mine.habitIds) ? mine.habitIds : []);
-                    setSavedIds(Array.isArray(mine.habitIds) ? mine.habitIds : []);
+                    const mineIds = normalizeHabitIds(mine.habitIds);
+                    setSelectedIds(mineIds);
+                    setSavedIds(mineIds);
                 }
             }
         } catch (error) {
@@ -100,16 +117,32 @@ const MyHabitsScreen = ({ navigation, route }) => {
     };
 
     const toggleHabit = (habitId) => {
-        setSelectedIds((prev) =>
-            prev.includes(habitId) ? prev.filter((id) => id !== habitId) : [...prev, habitId]
-        );
+        const id = Number(habitId);
+        const target = catalog.find(item => getHabitId(item) === id);
+        const targetGroup = target?.exclusiveGroup?.trim().toLowerCase();
+
+        setSelectedIds((prev) => {
+            if (prev.includes(id)) return prev.filter(selectedId => selectedId !== id);
+            if (!targetGroup) return [...prev, id];
+
+            const sameGroupIds = new Set(catalog
+                .filter(item => item.exclusiveGroup?.trim().toLowerCase() === targetGroup)
+                .map(getHabitId));
+            return [...prev.filter(selectedId => !sameGroupIds.has(Number(selectedId))), id];
+        });
     };
 
     const hasChanges =
         selectedIds.length !== savedIds.length ||
         selectedIds.some((id) => !savedIds.includes(id));
+    const exclusiveConflict = findExclusiveGroupConflict(selectedIds, catalog);
 
     const handleBack = () => {
+        if (isSignup && exclusiveConflict) {
+            NotificationHelper.showError('Choose only one option from each opposite habit pair.');
+            return;
+        }
+
         if (isSignup) {
             navigation.navigate('Signup', {
                 ...route.params,
@@ -123,6 +156,11 @@ const MyHabitsScreen = ({ navigation, route }) => {
     };
 
     const handleSave = async () => {
+        if (exclusiveConflict) {
+            NotificationHelper.showError('Choose only one option from each opposite habit pair.');
+            return;
+        }
+
         if (selectedIds.length === 0) {
             NotificationHelper.showError('Please keep at least one habit ticked.');
             return;
@@ -212,8 +250,8 @@ const MyHabitsScreen = ({ navigation, route }) => {
                 <View style={styles.introCard}>
                     <Icon name="information-outline" size={16} color="#1E64D3" />
                     <Text style={styles.introText}>
-                        These show on your profile under the Habits tab, and clients can filter
-                        workers by them. Tick everything that applies to you.
+                        Select the details that accurately describe you. Some can also be used
+                        by clients as search filters. For paired options, choose one or leave both unselected.
                     </Text>
                 </View>
 
@@ -227,6 +265,12 @@ const MyHabitsScreen = ({ navigation, route }) => {
                         </View>
                     ) : null}
                 </View>
+                {exclusiveConflict ? (
+                    <Text style={styles.conflictText}>
+                        Conflicting choices are selected. Keep only one option for smoking status,
+                        cooking preference, or pet comfort before saving.
+                    </Text>
+                ) : null}
 
                 {catalog.length === 0 ? (
                     <View style={styles.emptyCard}>
@@ -236,7 +280,7 @@ const MyHabitsScreen = ({ navigation, route }) => {
                 ) : (
                     <View style={styles.listCard}>
                         {catalog.map((habit, index) => {
-                            const habitId = habit.habitId ?? habit.id;
+                            const habitId = getHabitId(habit);
                             const isChecked = selectedIds.includes(habitId);
                             return (
                                 <TouchableOpacity
@@ -246,7 +290,9 @@ const MyHabitsScreen = ({ navigation, route }) => {
                                     activeOpacity={0.8}
                                 >
                                     <Icon
-                                        name={isChecked ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                                        name={habit.exclusiveGroup
+                                            ? (isChecked ? 'radiobox-marked' : 'radiobox-blank')
+                                            : (isChecked ? 'checkbox-marked' : 'checkbox-blank-outline')}
                                         size={24}
                                         color={isChecked ? '#1E64D3' : '#C4CEDE'}
                                     />
@@ -262,10 +308,10 @@ const MyHabitsScreen = ({ navigation, route }) => {
 
             <View style={styles.footer}>
                 <TouchableOpacity
-                    style={[styles.saveBtn, (isSaving || (!isSignup && !hasChanges)) && styles.saveBtnIdle]}
+                    style={[styles.saveBtn, (isSaving || exclusiveConflict || (!isSignup && !hasChanges)) && styles.saveBtnIdle]}
                     onPress={handleSave}
                     activeOpacity={0.85}
-                    disabled={isSaving || (!isSignup && !hasChanges)}
+                    disabled={isSaving || Boolean(exclusiveConflict) || (!isSignup && !hasChanges)}
                 >
                     {isSaving ? (
                         <ActivityIndicator color="#FFF" />
@@ -324,6 +370,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     countText: { fontSize: 13, fontWeight: '700', color: '#475569' },
+    conflictText: { color: '#B91C1C', fontSize: 12.5, lineHeight: 18, marginBottom: 10, paddingHorizontal: 2 },
     unsavedChip: {
         backgroundColor: '#FFF7E6',
         borderWidth: 1,

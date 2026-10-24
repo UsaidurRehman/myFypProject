@@ -85,6 +85,12 @@ const LoginScreen = ({ navigation }) => {
 
       if (response.ok) {
         console.log('✅ Login API Response (OK):', { role: result.role, token: result.token?.substring(0, 20) + '...', clientId: result.clientId });
+        const loggedInRole = result.role || role;
+        const clientLatitude = Number(result.latitude);
+        const clientLongitude = Number(result.longitude);
+        const hasClientCoordinates = result.latitude != null && result.longitude != null &&
+          Number.isFinite(clientLatitude) && clientLatitude >= -90 && clientLatitude <= 90 &&
+          Number.isFinite(clientLongitude) && clientLongitude >= -180 && clientLongitude <= 180;
         
         // 1. Prepare key-value pairs for atomic batch storage
         const storageItems = [
@@ -94,8 +100,24 @@ const LoginScreen = ({ navigation }) => {
           ['userPicture', result.picture || ''],
           ['userAddress', result.address || ''],
           ['userPhone', result.phone || ''],
-          ['userEmail', result.email || (role === 'Client' ? trimmedIdentifier : '')],
+          ['userEmail', result.email || (loggedInRole === 'Client' ? trimmedIdentifier : '')],
         ];
+
+        if (loggedInRole === 'Client') {
+          const savedClientId = await AsyncStorage.getItem('clientId');
+          const isSameClient = result.clientId != null && savedClientId === result.clientId.toString();
+
+          // Prefer authoritative server coordinates. If this is the same client
+          // and the API has no point yet, preserve coordinates already saved by
+          // the map flow; clear them when switching to a different client.
+          if (hasClientCoordinates || !isSameClient) {
+            storageItems.push(
+              ['clientLatitude', hasClientCoordinates ? String(clientLatitude) : ''],
+              ['clientLongitude', hasClientCoordinates ? String(clientLongitude) : '']
+            );
+          }
+          storageItems.push(['clientCity', ''], ['clientCityCoordinates', '']);
+        }
 
         // 2. Add role-specific IDs safely if provided
         if (result.clientId != null) storageItems.push(['clientId', result.clientId.toString()]);
@@ -110,7 +132,7 @@ const LoginScreen = ({ navigation }) => {
         NotificationHelper.showSuccess("Login Successful!");
 
         // 3. Navigate by role (no location gate here any more)
-        const userRole = result.role || role;
+        const userRole = loggedInRole;
 
         if (userRole === 'Client') {
           console.log('🔄 Navigating to FindServiceScreen');

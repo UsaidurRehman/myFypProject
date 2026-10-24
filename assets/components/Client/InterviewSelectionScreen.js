@@ -19,6 +19,8 @@ const toDateKey = (value) => {
 
 const InterviewSelectionScreen = ({ navigation, route }) => {
     const { workerId, workerName } = route.params || {};
+    const initialPartTimeVerdict = route.params?.isPartTimeAvailable;
+    const hasInitialJobType = typeof initialPartTimeVerdict === 'boolean';
 
     const [date, setDate] = useState(new Date());
     const [mode, setMode] = useState('date');
@@ -30,7 +32,9 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
     const [slots, setSlots] = useState([]);
     const [slotsLoading, setSlotsLoading] = useState(true);
     const [hasSlots, setHasSlots] = useState(true);
-    const [isPartTime, setIsPartTime] = useState(false);
+    const [isPartTime, setIsPartTime] = useState(initialPartTimeVerdict === true);
+    const [jobTypeResolved, setJobTypeResolved] = useState(hasInitialJobType);
+    const [availabilityError, setAvailabilityError] = useState(false);
     const [isResidenceProvided, setIsResidenceProvided] = useState(false);
     const [isExclusive, setIsExclusive] = useState(false);
     const [radius, setRadius] = useState(null);
@@ -75,6 +79,7 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
     const fetchSlots = useCallback(async () => {
         try {
             setSlotsLoading(true);
+            setAvailabilityError(false);
             const token = await AsyncStorage.getItem('userToken');
 
             const response = await fetch(
@@ -86,19 +91,26 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                 const data = await response.json();
                 setSlots(Array.isArray(data.slots) ? data.slots : []);
                 setHasSlots(!!data.hasSlots);
-                setIsPartTime(!!data.isPartTimeAvailable);
+                if (typeof data.isPartTimeAvailable === 'boolean') {
+                    setIsPartTime(data.isPartTimeAvailable);
+                    setJobTypeResolved(true);
+                } else if (!hasInitialJobType) {
+                    setAvailabilityError(true);
+                }
                 setRadius(data.radius ?? null);
                 setDistanceKm(data.distanceKm ?? null);
             } else {
                 setSlots([]);
+                setAvailabilityError(true);
             }
         } catch (error) {
             console.error('Slot fetch error:', error);
             setSlots([]);
+            setAvailabilityError(true);
         } finally {
             setSlotsLoading(false);
         }
-    }, [workerId, dateKey]);
+    }, [workerId, dateKey, hasInitialJobType]);
 
     useEffect(() => {
         fetchSlots();
@@ -128,13 +140,18 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
     };
 
     const selectedSlot = slots.find((slot) => slot.id === selectedSlotId) || null;
-    const bookingBlockedBySlots = isPartTime && !slotsLoading && (!hasSlots || slots.length === 0);
+    const bookingBlockedBySlots = jobTypeResolved && isPartTime && !slotsLoading && (!hasSlots || slots.length === 0);
     const needsSlot = isPartTime && !bookingBlockedBySlots;
-    const canConfirm = isReady && !isLoading && !slotsLoading && !bookingBlockedBySlots && (!needsSlot || !!selectedSlot);
+    const canConfirm = jobTypeResolved && isReady && !isLoading && !slotsLoading && !bookingBlockedBySlots && (!needsSlot || !!selectedSlot);
 
     const handleConfirmInterview = async (forceNonExclusive = false) => {
-        // ignore the very first moments and every repeat tap while a request is in flight
+        // Ignore early/fall-through taps and wait until the server's job-type
+        // verdict is known before sending any booking.
         if (!readyRef.current || submittingRef.current) return;
+        if (!jobTypeResolved) {
+            NotificationHelper.showError('Still checking whether this is a part-time or full-time booking. Please try again.');
+            return;
+        }
 
         if (bookingBlockedBySlots) {
             NotificationHelper.showError('This worker has not published any time slots yet.');
@@ -223,6 +240,28 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <Text style={styles.subTitle}>When do you need to interview {workerName}?</Text>
 
+                {!jobTypeResolved && (
+                    <View style={styles.typeCheckContainer}>
+                        {slotsLoading ? (
+                            <>
+                                <ActivityIndicator size="small" color="#1E64D3" />
+                                <Text style={styles.typeCheckText}>Checking booking type…</Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.typeCheckText}>
+                                    {availabilityError
+                                        ? 'Could not determine the booking type. Please try again.'
+                                        : 'Booking type is not available yet.'}
+                                </Text>
+                                <TouchableOpacity onPress={fetchSlots} style={styles.typeCheckRetry}>
+                                    <Text style={styles.typeCheckRetryText}>Retry</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </View>
+                )}
+
                 {isPartTime && (
                     <View style={styles.typeBanner}>
                         <View style={styles.typeBannerTop}>
@@ -286,7 +325,7 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                     <View style={styles.pickerSection}>
                         <Text style={styles.sectionHeading}>Worker's Time Slots</Text>
                         <Text style={styles.sectionHint}>
-                            Choose the window you need {workerName} for on {date.toDateString()}.
+                            Choose a window for {date.toDateString()}. Each slot can be reserved by only one active interview at a time, even across different dates.
                         </Text>
 
                         {slotsLoading ? (
@@ -345,7 +384,7 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                     </View>
                 </View>
 
-                {!isPartTime && (
+                {jobTypeResolved && !isPartTime && (
                     <View style={styles.pickerSection}>
                         <Text style={styles.sectionHeading}>Residence Provision</Text>
                         <View style={styles.selectorCard}>
@@ -368,7 +407,7 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                     </View>
                 )}
 
-                {!isPartTime && (
+                {jobTypeResolved && !isPartTime && (
                     <View style={styles.pickerSection}>
                         <Text style={styles.sectionHeading}>Full-Time Exclusivity</Text>
                         <View style={styles.selectorCard}>
@@ -406,11 +445,13 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                         <ActivityIndicator color="#FFF" />
                     ) : (
                         <Text style={styles.confirmBtnText}>
-                            {bookingBlockedBySlots
-                                ? 'No Slots Available'
-                                : needsSlot && !selectedSlot
-                                    ? 'Pick A Time Slot'
-                                    : 'Confirm Booking'}
+                            {!jobTypeResolved
+                                ? 'Checking Booking Type…'
+                                : bookingBlockedBySlots
+                                    ? 'No Slots Available'
+                                    : needsSlot && !selectedSlot
+                                        ? 'Pick A Time Slot'
+                                        : 'Confirm Booking'}
                         </Text>
                     )}
                 </TouchableOpacity>
@@ -441,6 +482,13 @@ const styles = StyleSheet.create({
     typeBannerText: { fontSize: 12, fontWeight: '800', color: '#B45309', marginLeft: 6 },
     typeBannerHint: { fontSize: 11, fontWeight: '700', color: '#B45309', marginLeft: 'auto' },
     typeBannerBody: { fontSize: 12, color: '#7C4A03', marginTop: 6, lineHeight: 17 },
+    typeCheckContainer: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: '#EEF5FF', borderRadius: 12, padding: 12, marginBottom: 18,
+    },
+    typeCheckText: { fontSize: 13, color: '#36506C', marginLeft: 8, textAlign: 'center' },
+    typeCheckRetry: { marginLeft: 12, paddingHorizontal: 12, paddingVertical: 6 },
+    typeCheckRetryText: { color: '#1E64D3', fontWeight: '700' },
 
     pickerSection: { marginBottom: 25 },
     sectionHeading: { fontSize: 16, fontWeight: 'bold', color: '#000', marginBottom: 10, marginLeft: 5 },

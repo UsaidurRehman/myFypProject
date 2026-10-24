@@ -220,6 +220,7 @@ export const detectAndUpdateLocation = async () => {
 
             await AsyncStorage.setItem('clientLatitude', latitude.toString());
             await AsyncStorage.setItem('clientLongitude', longitude.toString());
+            await AsyncStorage.multiRemove(['clientCity', 'clientCityCoordinates']);
 
             try {
               const response = await fetch(`${API_DASHBOARD}/update-location`, {
