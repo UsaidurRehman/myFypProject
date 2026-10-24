@@ -118,7 +118,7 @@ const JobConfirmationScreen = ({ navigation, route }) => {
     const renderJobCard = (item) => {
         const {
             id, clientId, clientName, clientImage, clientRating,
-            date, role, address, message, type, status, jobType, isResidenceProvided, slotStartTime, slotEndTime
+            date, role, address, message, type, status, jobType, isResidenceProvided, isExclusive, slotStartTime, slotEndTime
         } = item;
         const hiringId = id;
 
@@ -274,6 +274,15 @@ const JobConfirmationScreen = ({ navigation, route }) => {
                         </View>
                     ))}
                 </View>
+
+                {isExclusive && String(jobType || '').toLowerCase() === 'full-time' && (
+                    <View style={{ backgroundColor: '#FFF7ED', borderColor: '#FDBA74', borderWidth: 1, borderRadius: 10, padding: 11, marginHorizontal: 16, marginBottom: 12 }}>
+                        <Text style={{ color: '#9A3412', fontWeight: '800', fontSize: 13 }}>Exclusive full-time offer</Text>
+                        <Text style={{ color: '#7C2D12', fontSize: 12, marginTop: 4, lineHeight: 18 }}>
+                            If you accept and the client confirms this offer, you agree not to accept other full-time work until you submit a resignation or the contract is terminated. Your profile will go offline on client confirmation.
+                        </Text>
+                    </View>
+                )}
 
                 {/* Row 5 — the client's message */}
                 {message ? (

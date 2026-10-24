@@ -64,7 +64,8 @@ const WorkerDecisionScreen = ({ navigation }) => {
                 NotificationHelper.showSuccess('Hiring decision finalized successfully.');
                 await fetchDecisions();
             } else {
-                NotificationHelper.showError("Failed to update final hiring state.");
+                const error = await response.json().catch(() => ({}));
+                NotificationHelper.showError(error.message || "Failed to update final hiring state.");
             }
         } catch (error) {
             NotificationHelper.showError("Network failure processing handshake.");
@@ -153,6 +154,9 @@ const WorkerDecisionScreen = ({ navigation }) => {
                                     <View style={styles.nameBlock}>
                                         <Text style={styles.workerName}>{item.workerName}</Text>
                                         <JobTypeBadge jobType={item.jobType} small style={styles.jobTypeBadge} />
+                                        {item.isExclusive && String(item.jobType || '').toLowerCase() === 'full-time' && (
+                                            <Text style={{ color: '#9A3412', fontSize: 12, fontWeight: '700', marginTop: 4 }}>Exclusive full-time commitment</Text>
+                                        )}
 <SlotTimeLabel startTime={item.slotStartTime} endTime={item.slotEndTime} small style={styles.slotTimeLabel} />
                                         <View style={[
                                             styles.statusBadge,

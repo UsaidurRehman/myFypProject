@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    StyleSheet, View, Text, TouchableOpacity,
+    StyleSheet, View, Text, TouchableOpacity, Alert,
     SafeAreaView, ScrollView, Platform, ActivityIndicator, Switch
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -32,6 +32,7 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
     const [hasSlots, setHasSlots] = useState(true);
     const [isPartTime, setIsPartTime] = useState(false);
     const [isResidenceProvided, setIsResidenceProvided] = useState(false);
+    const [isExclusive, setIsExclusive] = useState(false);
     const [radius, setRadius] = useState(null);
     const [distanceKm, setDistanceKm] = useState(null);
     const [selectedSlotId, setSelectedSlotId] = useState(null);
@@ -131,7 +132,7 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
     const needsSlot = isPartTime && !bookingBlockedBySlots;
     const canConfirm = isReady && !isLoading && !slotsLoading && !bookingBlockedBySlots && (!needsSlot || !!selectedSlot);
 
-    const handleConfirmInterview = async () => {
+    const handleConfirmInterview = async (forceNonExclusive = false) => {
         // ignore the very first moments and every repeat tap while a request is in flight
         if (!readyRef.current || submittingRef.current) return;
 
@@ -144,6 +145,8 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
             NotificationHelper.showError('Please pick one of the worker\'s time slots.');
             return;
         }
+
+        const isForcedNonExclusive = forceNonExclusive === true;
 
         submittingRef.current = true;
         setIsLoading(true);
@@ -160,17 +163,22 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    WorkerId: workerId,
+                    WorkerId: parseInt(workerId, 10),
                     InterviewDate: localISOTime,
                     Address: clientAddress,
                     Status: 'Pending',
                     SlotId: isPartTime && selectedSlot ? selectedSlot.id : null,
-                    IsResidenceProvided: !isPartTime ? isResidenceProvided : false
+                    IsResidenceProvided: !isPartTime ? isResidenceProvided : false,
+                    IsExclusive: !isPartTime && isExclusive && !isForcedNonExclusive
                 })
             });
 
             if (response.ok) {
                 const data = await response.json().catch(() => ({}));
+                const requestedExclusive = !isPartTime && isExclusive && !isForcedNonExclusive;
+                if (requestedExclusive && data.isExclusive !== true) {
+                    NotificationHelper.showError('The interview was created, but the server did not confirm exclusivity. Please verify the backend deployment before relying on this condition.');
+                }
                 const typeLabel = data.jobType ? jobTypeLabel(data.jobType) : '';
                 const slotLabel = isPartTime && selectedSlot
                     ? ` (${selectedSlot.startTime} - ${selectedSlot.endTime})`
@@ -181,7 +189,18 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                 navigation.replace('UserDashboardScreen');
             } else {
                 const err = await response.json().catch(() => ({}));
-                NotificationHelper.showError(err.message || 'Failed to book interview.');
+                if (response.status === 409 && err.code === 'ACTIVE_FULL_TIME_JOB' && isExclusive && !isForcedNonExclusive) {
+                    Alert.alert(
+                        'Worker already has a full-time job',
+                        'You can continue with this worker without exclusivity, or find another worker.',
+                        [
+                            { text: 'Find another worker', style: 'cancel', onPress: () => navigation.navigate('FindServiceScreen') },
+                            { text: 'Proceed non-exclusive', onPress: () => handleConfirmInterview(true) }
+                        ]
+                    );
+                } else {
+                    NotificationHelper.showError(err.message || 'Failed to book interview.');
+                }
             }
         } catch (error) {
             console.error('Booking error:', error);
@@ -349,13 +368,38 @@ const InterviewSelectionScreen = ({ navigation, route }) => {
                     </View>
                 )}
 
+                {!isPartTime && (
+                    <View style={styles.pickerSection}>
+                        <Text style={styles.sectionHeading}>Full-Time Exclusivity</Text>
+                        <View style={styles.selectorCard}>
+                            <View style={styles.iconCircleGreen}>
+                                <Icon name="briefcase-lock-outline" size={24} color="#B45309" />
+                            </View>
+                            <View style={styles.selectorTextCol}>
+                                <Text style={styles.selectorLabel}>Exclusive full-time work?</Text>
+                                <Text style={styles.selectorValue}>
+                                    {isExclusive
+                                        ? 'Worker will not accept other full-time work after you confirm hiring.'
+                                        : 'Worker may accept other work.'}
+                                </Text>
+                            </View>
+                            <Switch
+                                value={isExclusive}
+                                onValueChange={setIsExclusive}
+                                trackColor={{ false: '#D1D5DB', true: '#FCD34D' }}
+                                thumbColor={isExclusive ? '#D97706' : '#F3F4F6'}
+                            />
+                        </View>
+                    </View>
+                )}
+
                 <View style={styles.spacer} />
             </ScrollView>
 
             <View style={styles.footerContainer}>
                 <TouchableOpacity
                     style={[styles.confirmBtn, !canConfirm && styles.confirmBtnDisabled]}
-                    onPress={handleConfirmInterview}
+                    onPress={() => handleConfirmInterview(false)}
                     disabled={!canConfirm}
                 >
                     {isLoading ? (

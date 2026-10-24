@@ -190,6 +190,15 @@ const ActiveRequestsScreen = ({ navigation, route }) => {
                                     />
                                 </View>
 
+                                {item.isExclusive && String(item.jobType || '').toLowerCase() === 'full-time' && (
+                                    <View style={{ backgroundColor: '#FFF7ED', borderColor: '#FDBA74', borderWidth: 1, borderRadius: 10, padding: 11, marginBottom: 12 }}>
+                                        <Text style={{ color: '#9A3412', fontWeight: '800', fontSize: 13 }}>Exclusive full-time request</Text>
+                                        <Text style={{ color: '#7C2D12', fontSize: 12, marginTop: 4, lineHeight: 18 }}>
+                                            If the client confirms hiring, you agree not to accept other full-time work until you submit a resignation or the contract is terminated. Accepting this interview request alone does not activate the restriction.
+                                        </Text>
+                                    </View>
+                                )}
+
                                 <View style={styles.divider} />
 
                                 {/* Row 4: contact details */}
